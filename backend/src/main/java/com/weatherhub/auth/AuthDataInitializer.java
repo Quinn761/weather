@@ -48,9 +48,11 @@ public class AuthDataInitializer implements ApplicationRunner { // 声明 AuthDa
         Long userMenuId = ensureMenu("user:read", 0L, "用户管理", "/users", "User", 20, Menu.TYPE_MENU); // 用户管理页面
         Long roleMenuId = ensureMenu("role:read", 0L, "角色管理", "/roles", "Avatar", 30, Menu.TYPE_MENU); // 角色管理页面
         Long menuMenuId = ensureMenu("menu:read", 0L, "菜单管理", "/menus", "Menu", 40, Menu.TYPE_MENU); // 菜单管理页面
+        Long gisMenuId = ensureMenu("gis:read", 0L, "GIS 标注", "/gis", "Location", 50, Menu.TYPE_MENU);
         ensureMenu("user:write", userMenuId, "编辑用户", null, null, 21, Menu.TYPE_BUTTON); // 用户写权限
         ensureMenu("role:write", roleMenuId, "编辑角色", null, null, 31, Menu.TYPE_BUTTON); // 角色写权限
         ensureMenu("menu:write", menuMenuId, "编辑菜单", null, null, 41, Menu.TYPE_BUTTON); // 菜单写权限
+        ensureMenu("gis:write", gisMenuId, "编辑 GIS 标注", null, null, 51, Menu.TYPE_BUTTON);
     } // 
 
     private Long ensureMenu(String permissionCode, Long parentId, String name, String path, String icon, int sortNo, String type) { // 定义 ensureMenu 方法的入口

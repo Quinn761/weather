@@ -26,10 +26,12 @@ INSERT IGNORE INTO sys_menu (id, parent_id, name, path, icon, sort_no, permissio
 (4, 0, '菜单管理', '/menus', 'Menu', 40, 'menu:read', 'MENU', 'ENABLED', NOW(6), NOW(6)),
 (5, 2, '编辑用户', NULL, NULL, 21, 'user:write', 'BUTTON', 'ENABLED', NOW(6), NOW(6)),
 (6, 3, '编辑角色', NULL, NULL, 31, 'role:write', 'BUTTON', 'ENABLED', NOW(6), NOW(6)),
-(7, 4, '编辑菜单', NULL, NULL, 41, 'menu:write', 'BUTTON', 'ENABLED', NOW(6), NOW(6));
+(7, 4, '编辑菜单', NULL, NULL, 41, 'menu:write', 'BUTTON', 'ENABLED', NOW(6), NOW(6)),
+(8, 0, 'GIS 标注', '/gis', 'Location', 50, 'gis:read', 'MENU', 'ENABLED', NOW(6), NOW(6)),
+(9, 8, '编辑 GIS 标注', NULL, NULL, 51, 'gis:write', 'BUTTON', 'ENABLED', NOW(6), NOW(6));
 
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES
-(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7);
+(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9);
 
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES
 (2, 1);

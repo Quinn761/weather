@@ -43,7 +43,7 @@ const router = createRouter({
         {
           path: 'gis',
           name: 'gis',
-          meta: { title: 'GIS 标注' },
+          meta: { title: 'GIS 标注', permission: 'gis:read' },
           component: () => import('@/views/GisView.vue'),
         },
       ],
@@ -78,13 +78,11 @@ router.beforeEach(async (to) => {
   if (!authStore.token) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
-  if (!authStore.user) {
-    try {
-      await authStore.fetchMe()
-    } catch {
-      authStore.logout()
-      return { path: '/login', query: { redirect: to.fullPath } }
-    }
+  try {
+    await authStore.ensureFreshUser()
+  } catch {
+    authStore.logout()
+    return { path: '/login', query: { redirect: to.fullPath } }
   }
   const permission = to.meta.permission
   if (permission && !authStore.hasPermission(permission)) {
