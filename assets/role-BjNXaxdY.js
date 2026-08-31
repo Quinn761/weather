@@ -1,0 +1,1 @@
+import{t as e}from"./http-Dne1YrsZ.js";function t(){return e.get(`/roles`)}function n(t){return e.post(`/roles`,t)}function r(t,n){return e.put(`/roles/${t}`,n)}function i(t){return e.delete(`/roles/${t}`)}export{r as i,i as n,t as r,n as t};
