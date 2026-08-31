@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: weather-data-hub
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:3306/weatherhub?useUnicode=true&characterEncoding=utf8&characterSetResults=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+weatherhub:
+  seed-rbac: true
+  jwt:
+    secret: ${JWT_SECRET:weather-data-hub-dev-jwt-secret-key-32b}
+    expire-hours: 24
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+
+logging:
+  level:
+    com.weatherhub: INFO
+    org.hibernate.SQL: WARN
+    com.weatherhub.user: DEBUG
+    com.weatherhub.rbac: DEBUG

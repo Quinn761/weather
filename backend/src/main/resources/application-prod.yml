@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: ${MYSQL_URL}
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        format_sql: false
+
+weatherhub:
+  seed-rbac: ${SEED_RBAC:true}
+  jwt:
+    secret: ${JWT_SECRET}
+    expire-hours: ${JWT_EXPIRE_HOURS:24}
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost,http://127.0.0.1}
+
+logging:
+  level:
+    com.weatherhub: INFO
+    org.hibernate.SQL: WARN
+    com.weatherhub.user: INFO
+    com.weatherhub.rbac: INFO
