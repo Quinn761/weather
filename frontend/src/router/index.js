@@ -40,6 +40,12 @@ const router = createRouter({
           meta: { title: '菜单管理', permission: 'menu:read' },
           component: () => import('@/views/MenuView.vue'),
         },
+        {
+          path: 'gis',
+          name: 'gis',
+          meta: { title: 'GIS 标注' },
+          component: () => import('@/views/GisView.vue'),
+        },
       ],
     },
   ],
