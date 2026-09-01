@@ -67,6 +67,8 @@ public class SecurityConfig { // 声明 SecurityConfig 类
                         .requestMatchers(HttpMethod.GET, "/api/menus/**").hasAuthority("menu:read") // 查询菜单需要读权限
                         .requestMatchers("/api/menus/**").hasAuthority("menu:write") // 改菜单需要写权限
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/**").hasAuthority("dashboard:view") // 工作台需要查看权限
+                        .requestMatchers(HttpMethod.GET, "/api/gis/**").hasAuthority("gis:read") // 查询 GIS 标注需要读权限
+                        .requestMatchers("/api/gis/**").hasAuthority("gis:write") // 改 GIS 标注需要写权限
                         .anyRequest().authenticated()) // 其余接口只要登录即可
                 .exceptionHandling(handling -> handling // 开始配置未登录和无权限的返回体
                         .authenticationEntryPoint((request, response, ex) -> writeJson(response, 401, "未登录或登录已过期")) // 未登录返回 401

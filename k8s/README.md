@@ -22,6 +22,7 @@ k3s ctr images import /tmp/weather-images.tar
 
 kubectl apply -f k8s/00-namespace.yaml
 kubectl -n weather create configmap mysql-init --from-file=deploy/mysql/init --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n weather create configmap postgis-init --from-file=deploy/postgis/init --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f k8s/
 kubectl -n weather get pods -w
 ```

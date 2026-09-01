@@ -10,7 +10,10 @@ data:
   MYSQL_USERNAME: root
   JWT_EXPIRE_HOURS: "24"
   SEED_RBAC: "true"
-  CORS_ORIGINS: http://localhost,http://127.0.0.1,https://quinn761.github.io,http://60.205.211.104,http://60.205.211.104:30080
+  CORS_ORIGINS: http://localhost,http://127.0.0.1,https://quinn761.github.io,http://60.205.211.104,http://60.205.211.104:30000,http://60.205.211.104:30080
+  POSTGIS_DATABASE: weatherhub_gis
+  POSTGIS_USERNAME: weatherhub
+  POSTGIS_URL: jdbc:postgresql://postgis:5432/weatherhub_gis
 ---
 apiVersion: v1
 kind: Secret
@@ -21,3 +24,4 @@ type: Opaque
 stringData:
   MYSQL_ROOT_PASSWORD: WeatherHub2026Mysql
   JWT_SECRET: WeatherHubJwtSecret2026ChangeMeToLongRandomString
+  POSTGIS_PASSWORD: WeatherHub2026Postgis

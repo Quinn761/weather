@@ -19,6 +19,26 @@ services:
       retries: 20
       start_period: 20s
 
+  postgis:
+    image: postgis/postgis:16-3.5
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      POSTGRES_DB: weatherhub_gis
+      POSTGRES_USER: weatherhub
+      POSTGRES_PASSWORD: ${POSTGIS_PASSWORD:?请在 .env 中设置 POSTGIS_PASSWORD}
+    ports:
+      - "${POSTGIS_PORT:-5432}:5432"
+    volumes:
+      - weatherhub-postgis:/var/lib/postgresql/data
+      - ./deploy/postgis/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weatherhub -d weatherhub_gis"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
   backend:
     build:
       context: ./backend
@@ -27,12 +47,17 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      postgis:
+        condition: service_healthy
     environment:
       TZ: Asia/Shanghai
       SPRING_PROFILES_ACTIVE: prod
       MYSQL_URL: jdbc:mysql://mysql:3306/weatherhub?useUnicode=true&characterEncoding=utf8&characterSetResults=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
       MYSQL_USERNAME: root
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      POSTGIS_URL: jdbc:postgresql://postgis:5432/weatherhub_gis
+      POSTGIS_USERNAME: weatherhub
+      POSTGIS_PASSWORD: ${POSTGIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
       JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-24}
       SEED_RBAC: ${SEED_RBAC:-true}
@@ -61,3 +86,4 @@ services:
 
 volumes:
   weatherhub-mysql:
+  weatherhub-postgis:

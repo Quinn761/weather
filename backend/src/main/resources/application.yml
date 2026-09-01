@@ -29,6 +29,12 @@ weatherhub:
     expire-hours: 24
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  gis:
+    enabled: ${GIS_ENABLED:true}
+    datasource:
+      url: ${POSTGIS_URL:jdbc:postgresql://127.0.0.1:5432/weatherhub_gis}
+      username: ${POSTGIS_USERNAME:weatherhub}
+      password: ${POSTGIS_PASSWORD:weatherhub}
 
 mybatis-plus:
   configuration:

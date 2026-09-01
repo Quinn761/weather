@@ -39,6 +39,11 @@ export default defineConfig(({ mode }) => ({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/uav-tiles': {
+        target: 'http://60.205.211.104:8888',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/uav-tiles/, '/uav'),
+      },
     },
   },
 }))

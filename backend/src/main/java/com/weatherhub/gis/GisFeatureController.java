@@ -5,6 +5,7 @@ import com.weatherhub.gis.dto.GisFeatureVO;
 import com.weatherhub.gis.dto.SaveGisFeatureRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/gis/features")
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "weatherhub.gis.enabled", havingValue = "true", matchIfMissing = true)
 public class GisFeatureController {
     private final GisFeatureService gisFeatureService;
 

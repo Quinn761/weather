@@ -11,5 +11,7 @@ spring:
 
 weatherhub:
   seed-rbac: false
+  gis:
+    enabled: false
   jwt:
     secret: weather-data-hub-test-jwt-secret-key-32b

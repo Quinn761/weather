@@ -75,6 +75,21 @@ spec:
                 configMapKeyRef:
                   name: weather-config
                   key: CORS_ORIGINS
+            - name: POSTGIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: POSTGIS_URL
+            - name: POSTGIS_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: POSTGIS_USERNAME
+            - name: POSTGIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: POSTGIS_PASSWORD
           ports:
             - containerPort: 8080
               name: http
