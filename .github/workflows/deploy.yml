@@ -89,11 +89,12 @@ jobs:
         uses: appleboy/ssh-action@v1.2.2
         env:
           IMAGE_TAG: ${{ github.sha }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: IMAGE_TAG
+          envs: IMAGE_TAG,AI_API_KEY
           command_timeout: 20m
           script: |
             set -euo pipefail
@@ -119,6 +120,25 @@ jobs:
             kubectl apply -f "$K8SDIR/03-backend.yaml"
             kubectl apply -f "$K8SDIR/04-frontend.yaml"
             kubectl -n weather rollout status deploy/redis --timeout=120s
+
+            if [ -z "${AI_API_KEY:-}" ] && [ -f /root/.weather-ai-key ]; then
+              AI_API_KEY="$(tr -d '\r\n' < /root/.weather-ai-key)"
+            fi
+            if [ -n "${AI_API_KEY:-}" ]; then
+              printf '%s' "$AI_API_KEY" > /root/.weather-ai-key
+              chmod 600 /root/.weather-ai-key
+              python3 - <<'PY'
+import json
+from pathlib import Path
+key = Path("/root/.weather-ai-key").read_text().strip()
+Path("/tmp/ai-patch.json").write_text(json.dumps({"stringData": {"AI_API_KEY": key}}))
+PY
+              kubectl -n weather patch secret weather-secret --type merge --patch-file /tmp/ai-patch.json
+              rm -f /tmp/ai-patch.json
+              echo "已写入 AI_API_KEY（${#AI_API_KEY} 字符）"
+            else
+              echo "未配置 AI_API_KEY，质检官将走本地交卷"
+            fi
 
             kubectl -n weather set image deploy/backend "backend=weather_backend:${IMAGE_TAG}"
             kubectl -n weather set image deploy/frontend "frontend=weather_frontend:${IMAGE_TAG}"
