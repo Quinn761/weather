@@ -39,6 +39,18 @@ services:
       retries: 20
       start_period: 20s
 
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
   backend:
     build:
       context: ./backend
@@ -49,6 +61,8 @@ services:
         condition: service_healthy
       postgis:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       TZ: Asia/Shanghai
       SPRING_PROFILES_ACTIVE: prod
@@ -58,10 +72,16 @@ services:
       POSTGIS_URL: jdbc:postgresql://postgis:5432/weatherhub_gis
       POSTGIS_USERNAME: weatherhub
       POSTGIS_PASSWORD: ${POSTGIS_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
       JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-24}
       SEED_RBAC: ${SEED_RBAC:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://127.0.0.1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
+      AI_MODEL: ${AI_MODEL:-deepseek-chat}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
     expose:
       - "8080"
     ports:

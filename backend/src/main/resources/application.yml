@@ -13,6 +13,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
 
 server:
   port: 8080
@@ -35,6 +40,14 @@ weatherhub:
       url: ${POSTGIS_URL:jdbc:postgresql://127.0.0.1:5432/weatherhub_gis}
       username: ${POSTGIS_USERNAME:weatherhub}
       password: ${POSTGIS_PASSWORD:weatherhub}
+  ai:
+    enabled: ${AI_ENABLED:true}
+    base-url: ${AI_BASE_URL:https://api.deepseek.com}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:deepseek-chat}
+    embedding-model: ${AI_EMBEDDING_MODEL:}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:90}
+    max-tool-rounds: ${AI_MAX_TOOL_ROUNDS:6}
 
 mybatis-plus:
   configuration:

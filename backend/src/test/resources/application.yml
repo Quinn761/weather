@@ -8,6 +8,10 @@ spring:
     hibernate:
       ddl-auto: create-drop
     open-in-view: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
 
 weatherhub:
   seed-rbac: false
@@ -15,3 +19,7 @@ weatherhub:
     enabled: false
   jwt:
     secret: weather-data-hub-test-jwt-secret-key-32b
+  ai:
+    enabled: true
+    api-key: ""
+    model: test-model

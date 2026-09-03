@@ -28,6 +28,7 @@ public class JwtAuthFilter extends OncePerRequestFilter { // 声明 JwtAuthFilte
     private final JwtService jwtService; // 定义 jwtService 字段保存对象状态或依赖
     private final UserMapper userMapper; // 定义 userMapper 字段保存对象状态或依赖
     private final MenuMapper menuMapper; // 定义 menuMapper 字段保存对象状态或依赖
+    private final TokenBlacklist tokenBlacklist; // 定义 tokenBlacklist 字段用于拦截已退出令牌
 
     @Override // 应用 Override 注解配置当前声明
     protected boolean shouldNotFilter(HttpServletRequest request) { // 定义 shouldNotFilter 方法的入口
@@ -35,7 +36,7 @@ public class JwtAuthFilter extends OncePerRequestFilter { // 声明 JwtAuthFilte
             return true; // 预检请求不解析令牌
         } // 
         String path = request.getServletPath(); // 计算并保存当前请求路径
-        return "/api/auth/login".equals(path) || "/api/health".equals(path); // 登录和健康检查不解析令牌
+        return "/api/auth/login".equals(path) || "/api/auth/logout".equals(path) || "/api/health".equals(path); // 登录、退出和健康检查不解析令牌
     } // 
 
     @Override // 应用 Override 注解配置当前声明
@@ -53,6 +54,9 @@ public class JwtAuthFilter extends OncePerRequestFilter { // 声明 JwtAuthFilte
 
     private void authenticate(String token, HttpServletRequest request) { // 定义 authenticate 方法的入口
         try { // 开始当前声明或控制结构的代码块
+            if (tokenBlacklist.denied(token)) { // 已退出的令牌即使签名仍有效也拒绝
+                return; // 不写入认证上下文
+            } //
             String subject = jwtService.parseToken(token).getSubject(); // 从令牌中取出用户主键
             Long userId = Long.valueOf(subject); // 把主键转换成数字类型
             User user = userMapper.selectById(userId); // 按主键查询当前用户

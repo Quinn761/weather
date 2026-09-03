@@ -46,6 +46,18 @@ const router = createRouter({
           meta: { title: 'GIS 标注', permission: 'gis:read' },
           component: () => import('@/views/GisView.vue'),
         },
+        {
+          path: 'kb',
+          name: 'kb',
+          meta: { title: '知识库', permission: 'kb:read' },
+          component: () => import('@/views/KnowledgeView.vue'),
+        },
+        {
+          path: 'ai',
+          name: 'ai',
+          meta: { title: 'Agent 工作台', permission: 'ai:chat' },
+          component: () => import('@/views/AiView.vue'),
+        },
       ],
     },
   ],
@@ -81,7 +93,7 @@ router.beforeEach(async (to) => {
   try {
     await authStore.ensureFreshUser()
   } catch {
-    authStore.logout()
+    await authStore.logout()
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   const permission = to.meta.permission

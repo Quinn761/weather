@@ -9,6 +9,11 @@ spring:
     properties:
       hibernate:
         format_sql: false
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
 
 weatherhub:
   seed-rbac: ${SEED_RBAC:true}
@@ -23,6 +28,14 @@ weatherhub:
       url: ${POSTGIS_URL}
       username: ${POSTGIS_USERNAME}
       password: ${POSTGIS_PASSWORD}
+  ai:
+    enabled: ${AI_ENABLED:true}
+    base-url: ${AI_BASE_URL:https://api.deepseek.com}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:deepseek-chat}
+    embedding-model: ${AI_EMBEDDING_MODEL:}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:90}
+    max-tool-rounds: ${AI_MAX_TOOL_ROUNDS:6}
 
 logging:
   level:

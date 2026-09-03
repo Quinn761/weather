@@ -27,6 +27,7 @@ public class AuthService { // 声明 AuthService 类
     private final MenuService menuService; // 定义 menuService 字段保存对象状态或依赖
     private final PasswordEncoder passwordEncoder; // 定义 passwordEncoder 字段保存对象状态或依赖
     private final JwtService jwtService; // 定义 jwtService 字段保存对象状态或依赖
+    private final TokenBlacklist tokenBlacklist; // 定义 tokenBlacklist 字段保存退出后的失效令牌
 
     public LoginVO login(LoginRequest request) { // 定义 login 方法的入口
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, request.username().trim())); // 按用户名查找账号
@@ -39,6 +40,19 @@ public class AuthService { // 声明 AuthService 类
         } // 
         String token = jwtService.createToken(user.getId(), user.getUsername()); // 计算并保存 token 的值
         return new LoginVO(token, "Bearer", jwtService.expireSeconds(), toUserVO(user, true)); // 登录时附带侧栏菜单
+    } //
+
+    public void logout(String authorization) { // 退出登录时把当前令牌写入黑名单
+        String token = extractBearer(authorization); // 从请求头取出令牌
+        tokenBlacklist.deny(token); // 让该令牌在过期前不能再访问接口
+    } //
+
+    private static String extractBearer(String authorization) { // 从 Authorization 头截取 Bearer 令牌
+        if (authorization == null || !authorization.startsWith("Bearer ")) { // 没有合法前缀
+            return null; // 视为没有令牌
+        } //
+        String token = authorization.substring(7).trim(); // 去掉 Bearer 前缀
+        return token.isEmpty() ? null : token; // 空字符串当作没有令牌
     } // 
 
     public UserVO currentUser(Long userId) { // 定义 currentUser 方法的入口

@@ -18,6 +18,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty; /
 import org.springframework.security.crypto.password.PasswordEncoder; // 导入 PasswordEncoder 类型或包供本文件使用
 import org.springframework.stereotype.Component; // 导入 Component 类型或包供本文件使用
 
+import java.time.LocalDateTime;
+
 @Slf4j // 让 Lombok 注入日志对象
 @Component // 声明这是 Spring 管理的组件
 @RequiredArgsConstructor // 让 Lombok 为 final 字段生成构造方法
@@ -49,16 +51,32 @@ public class AuthDataInitializer implements ApplicationRunner { // 声明 AuthDa
         Long roleMenuId = ensureMenu("role:read", 0L, "角色管理", "/roles", "Avatar", 30, Menu.TYPE_MENU); // 角色管理页面
         Long menuMenuId = ensureMenu("menu:read", 0L, "菜单管理", "/menus", "Menu", 40, Menu.TYPE_MENU); // 菜单管理页面
         Long gisMenuId = ensureMenu("gis:read", 0L, "GIS 标注", "/gis", "Location", 50, Menu.TYPE_MENU);
+        Long kbMenuId = ensureMenu("kb:read", 0L, "知识库", "/kb", "Collection", 55, Menu.TYPE_MENU);
+        ensureMenu("ai:chat", 0L, "Agent 工作台", "/ai", "ChatDotRound", 60, Menu.TYPE_MENU);
         ensureMenu("user:write", userMenuId, "编辑用户", null, null, 21, Menu.TYPE_BUTTON); // 用户写权限
         ensureMenu("role:write", roleMenuId, "编辑角色", null, null, 31, Menu.TYPE_BUTTON); // 角色写权限
         ensureMenu("menu:write", menuMenuId, "编辑菜单", null, null, 41, Menu.TYPE_BUTTON); // 菜单写权限
         ensureMenu("gis:write", gisMenuId, "编辑 GIS 标注", null, null, 51, Menu.TYPE_BUTTON);
+        ensureMenu("kb:write", kbMenuId, "编辑知识库", null, null, 56, Menu.TYPE_BUTTON);
     } // 
 
     private Long ensureMenu(String permissionCode, Long parentId, String name, String path, String icon, int sortNo, String type) { // 定义 ensureMenu 方法的入口
         Menu existing = menuMapper.selectOne(new LambdaQueryWrapper<Menu>().eq(Menu::getPermissionCode, permissionCode)); // 按权限编码查找菜单
-        if (existing != null) { // 已经有同权限菜单则复用
-            return existing.getId(); // 返回已有主键
+        if (existing != null) {
+            boolean dirty = false;
+            if (name != null && !name.equals(existing.getName())) {
+                existing.setName(name);
+                dirty = true;
+            }
+            if (path != null && !path.equals(existing.getPath())) {
+                existing.setPath(path);
+                dirty = true;
+            }
+            if (dirty) {
+                existing.setUpdatedAt(LocalDateTime.now());
+                menuMapper.updateById(existing);
+            }
+            return existing.getId();
         } // 
         Menu menu = new Menu(); // 创建新的菜单对象
         menu.setParentId(parentId == null ? 0L : parentId); // 写入父级
@@ -69,6 +87,9 @@ public class AuthDataInitializer implements ApplicationRunner { // 声明 AuthDa
         menu.setPermissionCode(permissionCode); // 写入权限编码
         menu.setType(type); // 写入类型
         menu.setStatus(Menu.STATUS_ENABLED); // 默认启用
+        LocalDateTime now = LocalDateTime.now();
+        menu.setCreatedAt(now);
+        menu.setUpdatedAt(now);
         menuMapper.insert(menu); // 插入菜单记录
         log.info("已初始化菜单 {}", name); // 记录初始化成功日志
         return menu.getId(); // 返回新主键

@@ -90,6 +90,32 @@ spec:
                 secretKeyRef:
                   name: weather-secret
                   key: POSTGIS_PASSWORD
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: REDIS_PORT
+            - name: AI_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: AI_BASE_URL
+            - name: AI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: AI_MODEL
+            - name: AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: AI_API_KEY
+                  optional: true
           ports:
             - containerPort: 8080
               name: http

@@ -34,8 +34,8 @@ function go(path) {
   router.push(path)
 }
 
-function logout() {
-  authStore.logout()
+async function logout() {
+  await authStore.logout()
   router.replace('/login')
 }
 </script>

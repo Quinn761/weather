@@ -59,7 +59,7 @@ public class SecurityConfig { // 声明 SecurityConfig 类
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 使用无状态会话
                 .authorizeHttpRequests(auth -> auth // 开始配置接口访问规则
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // 放行浏览器预检请求
-                        .requestMatchers("/api/auth/login", "/api/health").permitAll() // 登录和健康检查无需令牌
+                        .requestMatchers("/api/auth/login", "/api/auth/logout", "/api/health").permitAll() // 登录、退出和健康检查无需令牌
                         .requestMatchers(HttpMethod.GET, "/api/users/**").hasAuthority("user:read") // 查询用户需要读权限
                         .requestMatchers("/api/users/**").hasAuthority("user:write") // 改用户需要写权限
                         .requestMatchers(HttpMethod.GET, "/api/roles/**").hasAuthority("role:read") // 查询角色需要读权限
@@ -69,6 +69,9 @@ public class SecurityConfig { // 声明 SecurityConfig 类
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/**").hasAuthority("dashboard:view") // 工作台需要查看权限
                         .requestMatchers(HttpMethod.GET, "/api/gis/**").hasAuthority("gis:read") // 查询 GIS 标注需要读权限
                         .requestMatchers("/api/gis/**").hasAuthority("gis:write") // 改 GIS 标注需要写权限
+                        .requestMatchers(HttpMethod.GET, "/api/kb/**").hasAuthority("kb:read")
+                        .requestMatchers("/api/kb/**").hasAuthority("kb:write")
+                        .requestMatchers("/api/ai/**").hasAuthority("ai:chat") // 大模型助手需要对话权限
                         .anyRequest().authenticated()) // 其余接口只要登录即可
                 .exceptionHandling(handling -> handling // 开始配置未登录和无权限的返回体
                         .authenticationEntryPoint((request, response, ex) -> writeJson(response, 401, "未登录或登录已过期")) // 未登录返回 401

@@ -6,10 +6,14 @@ import com.weatherhub.rbac.MenuService; // 导入 MenuService 类型或包供本
 import com.weatherhub.rbac.RoleService; // 导入 RoleService 类型或包供本文件使用
 import com.weatherhub.user.UserMapper; // 导入 UserMapper 类型或包供本文件使用
 import lombok.RequiredArgsConstructor; // 导入 RequiredArgsConstructor 类型或包供本文件使用
+import org.springframework.beans.factory.ObjectProvider; // 导入 ObjectProvider 类型或包供本文件使用
+import org.springframework.data.redis.connection.RedisConnection; // 导入 RedisConnection 类型或包供本文件使用
+import org.springframework.data.redis.core.StringRedisTemplate; // 导入 StringRedisTemplate 类型或包供本文件使用
 import org.springframework.web.bind.annotation.GetMapping; // 导入 GetMapping 类型或包供本文件使用
 import org.springframework.web.bind.annotation.RequestMapping; // 导入 RequestMapping 类型或包供本文件使用
 import org.springframework.web.bind.annotation.RestController; // 导入 RestController 类型或包供本文件使用
 
+import java.util.LinkedHashMap; // 导入 LinkedHashMap 类型或包供本文件使用
 import java.util.Map; // 导入 Map 类型或包供本文件使用
 
 @RestController // 声明这是提供 HTTP 接口的控制器
@@ -20,13 +24,28 @@ public class DashboardController { // 声明 DashboardController 类
     private final UserMapper userMapper; // 定义 userMapper 字段保存对象状态或依赖
     private final RoleService roleService; // 定义 roleService 字段保存对象状态或依赖
     private final MenuService menuService; // 定义 menuService 字段保存对象状态或依赖
+    private final ObjectProvider<StringRedisTemplate> redis; // 定义 redis 字段，测试环境可能没有
 
     @GetMapping("/health") // 声明处理 HTTP GET 请求的接口
     public ApiResponse<Map<String, String>> health() { // 定义 health 方法的入口
-        return ApiResponse.ok(Map.of( // 返回当前方法的处理结果
-                "status", "UP", // 声明枚举值或多行参数的一项
-                "name", "Weather Data Hub" // 执行当前 Java 代码行的声明或逻辑
-        )); // 执行 )); 语句完成当前步骤
+        Map<String, String> data = new LinkedHashMap<>(); // 按固定顺序组装健康信息
+        data.put("status", "UP"); // 应用本身可用
+        data.put("name", "Weather Data Hub"); // 服务名称
+        data.put("redis", redisStatus()); // Redis 是否能 PING 通
+        return ApiResponse.ok(data); // 返回健康检查结果
+    } //
+
+    private String redisStatus() { // 探测 Redis 是否可用
+        StringRedisTemplate template = redis.getIfAvailable(); // 没有 Redis 客户端时返回空
+        if (template == null || template.getConnectionFactory() == null) { // 测试环境或未装配 Redis
+            return "DOWN"; // 标记为不可用
+        } //
+        try (RedisConnection connection = template.getConnectionFactory().getConnection()) { // 打开一条短连接
+            String pong = connection.ping(); // 发送 PING
+            return "PONG".equalsIgnoreCase(pong) ? "UP" : "DOWN"; // 只有 PONG 视为正常
+        } catch (Exception ex) { // Redis 连不上时不让健康检查抛错
+            return "DOWN"; // 标记为不可用
+        } //
     } // 
 
     @GetMapping("/dashboard/overview") // 声明处理 HTTP GET 请求的接口

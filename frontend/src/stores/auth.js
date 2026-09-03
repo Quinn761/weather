@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue' // 导入 vue 的响应式 API 供本文件使用
 import { defineStore } from 'pinia' // 导入 pinia 的 defineStore 供本文件使用
-import { getCurrentUser, login as loginApi } from '@/api/auth' // 导入登录接口方法供本文件使用
+import { getCurrentUser, login as loginApi, logout as logoutApi } from '@/api/auth' // 导入登录接口方法供本文件使用
 
 const TOKEN_KEY = 'wh_token' // 定义本地存储令牌的键名
 const USER_KEY = 'wh_user' // 定义本地存储用户资料的键名
@@ -62,7 +62,14 @@ export const useAuthStore = defineStore('auth', () => { // 声明 auth 状态仓
     return fetchMe()
   }
 
-  function logout() { // 定义 logout 方法的入口
+  async function logout() { // 定义 logout 方法的入口
+    try { // 先通知后端拉黑令牌，失败也继续清本地
+      if (token.value) { // 本地还有令牌时才调用退出接口
+        await logoutApi() // 把当前 JWT 写入 Redis 黑名单
+      } //
+    } catch { // 网络失败时仍清掉浏览器里的登录态
+      // 本地退出不受后端影响
+    } //
     token.value = '' // 清空令牌
     user.value = null // 清空用户资料
     userLoaded.value = false

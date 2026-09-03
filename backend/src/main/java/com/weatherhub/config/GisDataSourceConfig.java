@@ -43,6 +43,12 @@ public class GisDataSourceConfig {
         return dataSource;
     }
 
+    @Bean
+    @Primary
+    public JdbcTemplate jdbcTemplate(DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
+    }
+
     @Bean(name = "gisDataSource")
     public DataSource gisDataSource(
             @Value("${weatherhub.gis.datasource.url}") String url,
@@ -70,7 +76,11 @@ public class GisDataSourceConfig {
 
     @Bean
     @Primary
-    public SqlSessionFactory sqlSessionFactory(DataSource dataSource, MybatisPlusInterceptor mybatisPlusInterceptor) throws Exception {
+    public SqlSessionFactory sqlSessionFactory(
+            DataSource dataSource,
+            MybatisPlusInterceptor mybatisPlusInterceptor,
+            MybatisMetaObjectHandler metaObjectHandler
+    ) throws Exception {
         MybatisSqlSessionFactoryBean factory = new MybatisSqlSessionFactoryBean();
         factory.setDataSource(dataSource);
         MybatisConfiguration configuration = new MybatisConfiguration();
@@ -80,6 +90,7 @@ public class GisDataSourceConfig {
         GlobalConfig.DbConfig dbConfig = new GlobalConfig.DbConfig();
         dbConfig.setIdType(IdType.AUTO);
         globalConfig.setDbConfig(dbConfig);
+        globalConfig.setMetaObjectHandler(metaObjectHandler);
         factory.setGlobalConfig(globalConfig);
         factory.setPlugins(mybatisPlusInterceptor);
         return factory.getObject();

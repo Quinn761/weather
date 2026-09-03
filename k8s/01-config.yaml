@@ -14,6 +14,10 @@ data:
   POSTGIS_DATABASE: weatherhub_gis
   POSTGIS_USERNAME: weatherhub
   POSTGIS_URL: jdbc:postgresql://postgis:5432/weatherhub_gis
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  AI_BASE_URL: "https://api.deepseek.com"
+  AI_MODEL: "deepseek-chat"
 ---
 apiVersion: v1
 kind: Secret
@@ -25,3 +29,4 @@ stringData:
   MYSQL_ROOT_PASSWORD: WeatherHub2026Mysql
   JWT_SECRET: WeatherHubJwtSecret2026ChangeMeToLongRandomString
   POSTGIS_PASSWORD: WeatherHub2026Postgis
+  AI_API_KEY: ""

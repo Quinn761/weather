@@ -10,6 +10,7 @@ import org.springframework.security.core.Authentication; // 导入 Authenticatio
 import org.springframework.web.bind.annotation.GetMapping; // 导入 GetMapping 类型或包供本文件使用
 import org.springframework.web.bind.annotation.PostMapping; // 导入 PostMapping 类型或包供本文件使用
 import org.springframework.web.bind.annotation.RequestBody; // 导入 RequestBody 类型或包供本文件使用
+import org.springframework.web.bind.annotation.RequestHeader; // 导入 RequestHeader 类型或包供本文件使用
 import org.springframework.web.bind.annotation.RequestMapping; // 导入 RequestMapping 类型或包供本文件使用
 import org.springframework.web.bind.annotation.RestController; // 导入 RestController 类型或包供本文件使用
 
@@ -29,5 +30,11 @@ public class AuthController { // 声明 AuthController 类
     public ApiResponse<UserVO> me(Authentication authentication) { // 定义 me 方法的入口
         Long userId = Long.valueOf(authentication.getName()); // 计算并保存 userId 的值
         return ApiResponse.ok(authService.currentUser(userId)); // 返回当前方法的处理结果
-    } // 
+    } //
+
+    @PostMapping("/logout") // 声明处理 HTTP POST 请求的接口
+    public ApiResponse<Void> logout(@RequestHeader(value = "Authorization", required = false) String authorization) { // 定义 logout 方法的入口
+        authService.logout(authorization); // 把当前令牌写入 Redis 黑名单
+        return ApiResponse.ok(); // 前端随后清掉本地令牌
+    } //
 } // 

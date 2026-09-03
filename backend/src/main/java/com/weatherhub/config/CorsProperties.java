@@ -14,10 +14,14 @@ public class CorsProperties { // 声明 CorsProperties 类
 
     private String allowedOrigins = "http://localhost:5173,http://127.0.0.1:5173"; // 允许的前端来源，逗号分隔
 
-    public List<String> originList() { // 把配置拆成来源列表
-        return Arrays.stream(allowedOrigins.split(",")) // 按逗号切开
-                .map(String::trim) // 去掉两端空格
-                .filter(item -> !item.isEmpty()) // 丢掉空项
-                .toList(); // 收集成列表
+    public List<String> originList() {
+        List<String> configured = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(item -> !item.isEmpty())
+                .toList();
+        java.util.LinkedHashSet<String> origins = new java.util.LinkedHashSet<>(configured);
+        origins.add("http://localhost:5173");
+        origins.add("http://127.0.0.1:5173");
+        return List.copyOf(origins);
     } // 结束当前代码块
 } // 结束当前代码块

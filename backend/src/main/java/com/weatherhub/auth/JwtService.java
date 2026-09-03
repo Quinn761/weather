@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component; // 导入 Component 类型或�
 
 import javax.crypto.SecretKey; // 导入 SecretKey 类型或包供本文件使用
 import java.nio.charset.StandardCharsets; // 导入 StandardCharsets 类型或包供本文件使用
+import java.time.Duration; // 导入 Duration 类型或包供本文件使用
 import java.time.Instant; // 导入 Instant 类型或包供本文件使用
 import java.util.Date; // 导入 Date 类型或包供本文件使用
 
@@ -46,6 +47,11 @@ public class JwtService { // 声明 JwtService 类
 
     public long expireSeconds() { // 定义 expireSeconds 方法的入口
         return jwtProperties.getExpireHours() * 3600; // 返回当前方法的处理结果
+    } //
+
+    public Duration remainingTtl(String token) { // 计算令牌距离过期还剩多久
+        Date expireAt = parseToken(token).getExpiration(); // 取出过期时间
+        return Duration.between(Instant.now(), expireAt.toInstant()); // 返回剩余时长，可能为负
     } // 
 
     private SecretKey signingKey() { // 定义 signingKey 方法的入口
