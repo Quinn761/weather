@@ -127,12 +127,7 @@ jobs:
             if [ -n "${AI_API_KEY:-}" ]; then
               printf '%s' "$AI_API_KEY" > /root/.weather-ai-key
               chmod 600 /root/.weather-ai-key
-              python3 - <<'PY'
-import json
-from pathlib import Path
-key = Path("/root/.weather-ai-key").read_text().strip()
-Path("/tmp/ai-patch.json").write_text(json.dumps({"stringData": {"AI_API_KEY": key}}))
-PY
+              python3 -c 'import json; from pathlib import Path; k=Path("/root/.weather-ai-key").read_text().strip(); Path("/tmp/ai-patch.json").write_text(json.dumps({"stringData":{"AI_API_KEY":k}}))'
               kubectl -n weather patch secret weather-secret --type merge --patch-file /tmp/ai-patch.json
               rm -f /tmp/ai-patch.json
               echo "已写入 AI_API_KEY（${#AI_API_KEY} 字符）"
