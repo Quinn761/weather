@@ -62,25 +62,28 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
-      - name: Save images
+      - name: Save images and manifests
         run: |
+          docker pull redis:7.4-alpine
           docker save \
             "weather_backend:${IMAGE_TAG}" \
             weather_backend:latest \
             "weather_frontend:${IMAGE_TAG}" \
             weather_frontend:latest \
+            redis:7.4-alpine \
             | gzip -1 > weather-images.tar.gz
-          ls -lh weather-images.tar.gz
+          tar czf weather-k8s.tar.gz k8s
+          ls -lh weather-images.tar.gz weather-k8s.tar.gz
 
-      - name: Copy images to server
+      - name: Copy artifacts to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: weather-images.tar.gz
+          source: weather-images.tar.gz,weather-k8s.tar.gz
           target: /tmp
-          timeout: 10m
+          timeout: 15m
 
       - name: Import images and rollout
         uses: appleboy/ssh-action@v1.2.2
@@ -91,16 +94,50 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           envs: IMAGE_TAG
-          command_timeout: 15m
+          command_timeout: 20m
           script: |
             set -euo pipefail
+            IMAGE_TAG="${IMAGE_TAG:-${{ github.sha }}}"
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            gzip -dc /tmp/weather-images.tar.gz | k3s ctr images import -
-            rm -f /tmp/weather-images.tar.gz
+            export PATH="/usr/local/bin:/usr/bin:$PATH"
+
+            img="$(find /tmp -name weather-images.tar.gz -type f | head -n 1)"
+            k8s="$(find /tmp -name weather-k8s.tar.gz -type f | head -n 1)"
+            if [ -z "$img" ] || [ -z "$k8s" ]; then
+              echo "找不到上传的制品"
+              ls -la /tmp
+              exit 1
+            fi
+
+            gzip -dc "$img" | k3s ctr images import -
+            mkdir -p /tmp/weather-k8s-unpack
+            tar xzf "$k8s" -C /tmp/weather-k8s-unpack
+            K8SDIR="/tmp/weather-k8s-unpack/k8s"
+
+            kubectl apply -f "$K8SDIR/01-config.yaml"
+            kubectl apply -f "$K8SDIR/02-redis.yaml"
+            kubectl apply -f "$K8SDIR/03-backend.yaml"
+            kubectl apply -f "$K8SDIR/04-frontend.yaml"
+            kubectl -n weather rollout status deploy/redis --timeout=120s
+
             kubectl -n weather set image deploy/backend "backend=weather_backend:${IMAGE_TAG}"
             kubectl -n weather set image deploy/frontend "frontend=weather_frontend:${IMAGE_TAG}"
-            kubectl -n weather rollout status deploy/backend --timeout=180s
-            kubectl -n weather rollout status deploy/frontend --timeout=180s
-            curl -fsS "http://127.0.0.1:30080/api/health"
+
+            dump() {
+              echo "===== pods ====="
+              kubectl -n weather get pods -o wide || true
+              echo "===== backend ====="
+              kubectl -n weather describe deploy/backend | tail -60 || true
+              kubectl -n weather logs deploy/backend --tail=120 || true
+              echo "===== redis ====="
+              kubectl -n weather logs deploy/redis --tail=40 || true
+              exit 1
+            }
+
+            kubectl -n weather rollout status deploy/backend --timeout=360s || dump
+            kubectl -n weather rollout status deploy/frontend --timeout=120s || dump
+            curl -fsS "http://127.0.0.1:30080/api/health" || dump
             echo
             kubectl -n weather get pods
+            rm -f "$img" "$k8s"
+            rm -rf /tmp/weather-k8s-unpack
