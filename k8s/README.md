@@ -7,7 +7,7 @@ This directory contains single-node Kubernetes manifests for K3s.
 - Frontend: `http://60.205.211.104:30000/`
 - Backend health: `http://60.205.211.104:30080/api/health`
 
-GitHub Actions 会构建带 SAM 2.1 tiny 权重的 `weather_python_agent` 镜像，并启动 `python-agent` Deployment。该服务只在集群内对后端开放（`http://python-agent:8000`），不映射公网端口。
+GitHub Actions 日常部署只构建前后端（约几分钟）。SAM 2.1 镜像含 CPU 版 PyTorch，打包上传会到 50 分钟且容易把服务器磁盘打满，因此暂不随主流水线发布。线上 GIS 使用 Roboflow「AI 圈地」；SAM 2.1 请在本机 `python-agent` 使用。
 
 ## Apply
 
