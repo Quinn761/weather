@@ -6,16 +6,25 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 @Component
 public class LlmClient {
@@ -24,10 +33,11 @@ public class LlmClient {
 
     private final AiProperties properties;
     private final RestClient restClient;
+    private final HttpClient httpClient;
 
     public LlmClient(AiProperties properties) {
         this.properties = properties;
-        HttpClient httpClient = HttpClient.newBuilder()
+        this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(15))
                 .build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
@@ -59,6 +69,73 @@ public class LlmClient {
         }
         String raw = post("/chat/completions", body);
         return parseChat(raw);
+    }
+
+    public String chatStream(List<LlmMessage> messages, Consumer<String> onDelta) {
+        if (!configured()) {
+            throw new BusinessException(503, "尚未配置大模型 API Key。请设置 AI_API_KEY。默认对接 DeepSeek（deepseek-chat）。");
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", properties.getModel());
+        body.put("messages", messages.stream().map(this::toPayload).toList());
+        body.put("stream", true);
+        String payload = JSON.writeValueAsString(body);
+        HttpRequest.Builder request = HttpRequest.newBuilder()
+                .uri(URI.create(properties.normalizedBaseUrl() + "/chat/completions"))
+                .timeout(Duration.ofSeconds(Math.max(30, properties.getTimeoutSeconds())))
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8));
+        if (properties.hasApiKey()) {
+            request.header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey().trim());
+        }
+        try {
+            HttpResponse<InputStream> response = httpClient.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() >= 400) {
+                String errorBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
+                throw new BusinessException(502, describeLlmError(response.statusCode(), errorBody));
+            }
+            StringBuilder full = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.startsWith("data:")) {
+                        continue;
+                    }
+                    String data = line.substring(5).trim();
+                    if (data.isEmpty() || "[DONE]".equals(data)) {
+                        if ("[DONE]".equals(data)) {
+                            break;
+                        }
+                        continue;
+                    }
+                    String delta = extractStreamDelta(data);
+                    if (StringUtils.hasText(delta)) {
+                        full.append(delta);
+                        if (onDelta != null) {
+                            onDelta.accept(delta);
+                        }
+                    }
+                }
+            }
+            return full.toString();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BusinessException(502, "调用大模型失败：" + ex.getMessage());
+        }
+    }
+
+    static String extractStreamDelta(String json) {
+        JsonNode root = JSON.readTree(json);
+        JsonNode choices = root == null ? null : root.get("choices");
+        if (choices == null || !choices.isArray() || choices.isEmpty()) {
+            return "";
+        }
+        JsonNode delta = choices.get(0).get("delta");
+        if (delta == null || delta.isNull()) {
+            return text(choices.get(0).get("text"));
+        }
+        return text(delta.get("content"));
     }
 
     public List<Double> embed(String text) {

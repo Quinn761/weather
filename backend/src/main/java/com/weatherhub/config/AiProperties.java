@@ -29,6 +29,12 @@ public class AiProperties {
 
     private int maxToolRounds = 6;
 
+    /**
+     * Optional Python Agent service URL, for example http://python-agent:8000.
+     * When empty, the Java Agent keeps using the built-in reviewer.
+     */
+    private String pythonAgentUrl = "";
+
     public boolean hasApiKey() {
         return StringUtils.hasText(apiKey);
     }
@@ -46,5 +52,17 @@ public class AiProperties {
             base = base + "/v1";
         }
         return base;
+    }
+
+    public boolean hasPythonAgentUrl() {
+        return StringUtils.hasText(pythonAgentUrl);
+    }
+
+    public String normalizedPythonAgentUrl() {
+        String url = pythonAgentUrl == null ? "" : pythonAgentUrl.trim();
+        while (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        return url;
     }
 }

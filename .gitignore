@@ -13,3 +13,16 @@ backend/data/
 backend/.mvn/wrapper/maven-wrapper.jar
 
 .env
+frontend/.env
+
+backend/tile.bin
+
+.venv/
+.venv-*/
+**/.venv/
+__pycache__/
+*.py[cod]
+.cache/
+.matplotlib/
+python-*.exe
+python-agent/checkpoints/

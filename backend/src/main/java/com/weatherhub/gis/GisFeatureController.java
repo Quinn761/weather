@@ -38,4 +38,5 @@ public class GisFeatureController {
         gisFeatureService.delete(id);
         return ApiResponse.ok();
     }
+
 }

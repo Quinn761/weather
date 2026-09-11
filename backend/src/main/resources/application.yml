@@ -18,6 +18,9 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       timeout: 2s
+  mvc:
+    async:
+      request-timeout: 180000
 
 server:
   port: 8080
@@ -48,6 +51,7 @@ weatherhub:
     embedding-model: ${AI_EMBEDDING_MODEL:}
     timeout-seconds: ${AI_TIMEOUT_SECONDS:90}
     max-tool-rounds: ${AI_MAX_TOOL_ROUNDS:6}
+    python-agent-url: ${PYTHON_AGENT_URL:}
 
 mybatis-plus:
   configuration:

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { Delete, Plus, Position } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -8,7 +8,7 @@ import {
   getAgentSession,
   getAiStatus,
   listAgentSessions,
-  runAgent,
+  runAgentStream,
 } from '@/api/ai'
 
 const CREW = [
@@ -28,6 +28,7 @@ const loading = ref(false)
 const deletingId = ref(null)
 const draft = ref('')
 const board = ref(null)
+let streamAbort = null
 
 const hints = [
   '无锡明天会不会下雨？',
@@ -63,6 +64,10 @@ onMounted(async () => {
   }
 })
 
+onUnmounted(() => {
+  streamAbort?.abort()
+})
+
 async function refreshSessions() {
   sessions.value = (await listAgentSessions()) || []
 }
@@ -74,6 +79,7 @@ function resetBoard() {
 }
 
 async function openSession(id) {
+  streamAbort?.abort()
   sessionId.value = id
   const detail = await getAgentSession(id)
   messages.value = (detail.messages || []).map((item) => ({
@@ -142,33 +148,127 @@ async function send(text) {
   }
   draft.value = ''
   messages.value.push({ role: 'user', content, plan: [] })
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    pending: true,
+    streaming: true,
+    agent: 'reviewer',
+    plan: [],
+    usedTools: [],
+    ragSources: [],
+    trace: [],
+    mode: '',
+  })
+  const bubble = messages.value[messages.value.length - 1]
   sending.value = true
   scrollBottom()
+  streamAbort?.abort()
+  const abort = new AbortController()
+  streamAbort = abort
   try {
-    const data = await runAgent({ sessionId: sessionId.value, message: content })
+    const data = await runAgentStream(
+      { sessionId: sessionId.value, message: content },
+      {
+        signal: abort.signal,
+        onDelta: (chunk) => revealText(bubble, chunk, abort.signal),
+      },
+    )
+    applyRunResult(bubble, data)
     sessionId.value = data.sessionId
     mode.value = data.mode
-    messages.value.push({
-      role: 'assistant',
-      content: data.reply,
-      agent: 'reviewer',
-      plan: data.plan || [],
-      usedTools: data.usedTools || [],
-      ragSources: data.ragSources || [],
-      trace: data.trace || [],
-      mode: data.mode,
-    })
+    if (!bubble.content && data.reply) {
+      await revealText(bubble, data.reply, abort.signal)
+    } else if (data.reply && bubble.content !== data.reply) {
+      bubble.content = data.reply
+    }
+    bubble.pending = false
+    bubble.streaming = false
     await refreshSessions()
   } catch (error) {
-    messages.value.push({
-      role: 'assistant',
-      content: error.message || 'Agent 执行失败',
-      plan: [],
-    })
+    if (error.name === 'AbortError') {
+      return
+    }
+    bubble.pending = false
+    bubble.streaming = false
+    if (!bubble.content) {
+      bubble.content = error.message || 'Agent 执行失败'
+    }
+    bubble.plan = bubble.plan || []
   } finally {
     sending.value = false
+    if (streamAbort === abort) {
+      streamAbort = null
+    }
     scrollBottom()
   }
+}
+
+function applyRunResult(bubble, data) {
+  bubble.agent = 'reviewer'
+  bubble.plan = data.plan || []
+  bubble.usedTools = data.usedTools || []
+  bubble.ragSources = data.ragSources || []
+  bubble.trace = data.trace || []
+  bubble.mode = data.mode
+}
+
+async function revealText(bubble, text, signal) {
+  const chunk = text || ''
+  if (!chunk) {
+    return
+  }
+  if (bubble.pending) {
+    bubble.content = ''
+    bubble.pending = false
+  }
+  const chars = Array.from(chunk)
+  if (chars.length <= 24) {
+    bubble.content += chunk
+    scrollBottom()
+    return
+  }
+  const started = bubble.content
+  const duration = Math.min(2400, Math.max(280, chars.length * 16))
+  const start = performance.now()
+  await new Promise((resolve) => {
+    function tick() {
+      if (signal?.aborted) {
+        bubble.content = started + chunk
+        resolve()
+        return
+      }
+      const ratio = Math.min(1, (performance.now() - start) / duration)
+      bubble.content = started + chars.slice(0, Math.ceil(chars.length * ratio)).join('')
+      scrollBottom()
+      if (ratio >= 1) {
+        resolve()
+        return
+      }
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+}
+
+function modeLabel(value) {
+  if (value === 'llm' || value === 'python-llm') {
+    return '大模型质检'
+  }
+  if (value === 'local' || value === 'python-local') {
+    return '本地交卷'
+  }
+  return '未执行'
+}
+
+function modeChip(value) {
+  if (value === 'llm' || value === 'python-llm') {
+    return 'llm'
+  }
+  if (value === 'local' || value === 'python-local') {
+    return 'local'
+  }
+  return 'idle'
 }
 
 function crewLabel(id) {
@@ -284,8 +384,8 @@ function formatWhen(value) {
             <strong>{{ currentTitle }}</strong>
             <p>{{ messages.length ? `${messages.length} 条消息` : '等待目标' }}</p>
           </div>
-          <span class="mode-chip" :class="mode || 'idle'">
-            {{ mode === 'llm' ? '大模型质检' : mode === 'local' ? '本地交卷' : '未执行' }}
+          <span class="mode-chip" :class="modeChip(mode)">
+            {{ modeLabel(mode) }}
           </span>
         </header>
         <div ref="board" class="ai-board">
@@ -293,11 +393,16 @@ function formatWhen(value) {
             <strong>给 Agent 一个业务目标</strong>
             <p>例如「现在系统有多少用户」。规划官会拆步骤，其余角色按计划执行。</p>
           </div>
-          <article v-for="(item, index) in messages" :key="index" class="bubble" :class="item.role">
+          <article
+            v-for="(item, index) in messages"
+            :key="index"
+            class="bubble"
+            :class="[item.role, { streaming: item.streaming }]"
+          >
             <span v-if="item.role === 'assistant'" class="bubble-role">{{ crewLabel(item.agent || 'reviewer') }}</span>
-            <p>{{ item.content }}</p>
-            <div v-if="item.role === 'assistant'" class="bubble-meta">
-              <span v-if="item.mode">{{ item.mode === 'llm' ? '大模型质检官' : '本地质检官' }}</span>
+            <p>{{ item.pending && item.streaming ? '正在规划并收集证据…' : item.content }}</p>
+            <div v-if="item.role === 'assistant' && !item.streaming" class="bubble-meta">
+              <span v-if="item.mode">{{ item.mode === 'local' || item.mode === 'python-local' ? '本地质检官' : '大模型质检官' }}</span>
               <span v-if="item.ragSources?.length">RAG {{ item.ragSources.join('、') }}</span>
               <span v-if="item.usedTools?.length">Tool {{ item.usedTools.join('、') }}</span>
             </div>
@@ -633,6 +738,19 @@ function formatWhen(value) {
   border: 1px solid #e2e8f0;
   border-bottom-left-radius: 6px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+}
+
+.bubble.streaming p::after {
+  content: '▍';
+  margin-left: 2px;
+  color: #0ea5e9;
+  animation: caret 1s step-end infinite;
+}
+
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
 }
 
 .bubble-role {

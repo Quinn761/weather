@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-agent
+  namespace: weather
+spec:
+  selector:
+    app: python-agent
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-agent
+  namespace: weather
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: python-agent
+  template:
+    metadata:
+      labels:
+        app: python-agent
+    spec:
+      containers:
+        - name: python-agent
+          image: weather_python_agent:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: TZ
+            - name: AI_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: AI_BASE_URL
+            - name: AI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: AI_MODEL
+            - name: AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: AI_API_KEY
+                  optional: true
+          ports:
+            - containerPort: 8000
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12

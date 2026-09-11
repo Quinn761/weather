@@ -2,6 +2,7 @@ package com.weatherhub.config; // 声明当前 Java 文件所属的包路径
 
 import com.weatherhub.auth.JwtAuthFilter; // 导入 JwtAuthFilter 类型或包供本文件使用
 import com.weatherhub.common.ApiResponse; // 导入 ApiResponse 类型或包供本文件使用
+import jakarta.servlet.DispatcherType; // 导入 DispatcherType 类型或包供本文件使用
 import jakarta.servlet.http.HttpServletResponse; // 导入 HttpServletResponse 类型或包供本文件使用
 import lombok.RequiredArgsConstructor; // 导入 RequiredArgsConstructor 类型或包供本文件使用
 import org.springframework.boot.web.servlet.FilterRegistrationBean; // 导入 FilterRegistrationBean 类型或包供本文件使用
@@ -58,6 +59,7 @@ public class SecurityConfig { // 声明 SecurityConfig 类
                 .securityMatcher("/api/**") // 只保护接口，静态页交给 Nginx
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 使用无状态会话
                 .authorizeHttpRequests(auth -> auth // 开始配置接口访问规则
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll() // SSE 完成后的异步派发不再二次鉴权
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // 放行浏览器预检请求
                         .requestMatchers("/api/auth/login", "/api/auth/logout", "/api/health").permitAll() // 登录、退出和健康检查无需令牌
                         .requestMatchers(HttpMethod.GET, "/api/users/**").hasAuthority("user:read") // 查询用户需要读权限

@@ -18,6 +18,7 @@ data:
   REDIS_PORT: "6379"
   AI_BASE_URL: "https://api.deepseek.com"
   AI_MODEL: "deepseek-chat"
+  PYTHON_AGENT_URL: "http://python-agent:8000"
 ---
 apiVersion: v1
 kind: Secret

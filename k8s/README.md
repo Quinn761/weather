@@ -17,7 +17,7 @@ docker-compose down
 curl -sfL https://get.k3s.io | sh -
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-docker save weather_backend:latest weather_frontend:latest mysql:8.4.9 -o /tmp/weather-images.tar
+docker save weather_backend:latest weather_frontend:latest weather_python_agent:latest mysql:8.4.9 redis:7.4-alpine postgis/postgis:16-3.5 -o /tmp/weather-images.tar
 k3s ctr images import /tmp/weather-images.tar
 
 kubectl apply -f k8s/00-namespace.yaml

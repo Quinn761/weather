@@ -23,3 +23,4 @@ weatherhub:
     enabled: true
     api-key: ""
     model: test-model
+    python-agent-url: ""

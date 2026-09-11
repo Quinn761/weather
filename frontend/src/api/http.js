@@ -34,7 +34,10 @@ http.interceptors.response.use(
       }
       return Promise.reject(error)
     }
-    const message = error.response?.data?.message || error.message || '网络异常'
+    let message = error.response?.data?.message || error.message || '网络异常'
+    if (status === 502 || status === 503 || status === 504) {
+      message = '后端暂时连不上。请确认 8080 已启动后再试'
+    }
     ElMessage.error(message)
     return Promise.reject(error)
   },

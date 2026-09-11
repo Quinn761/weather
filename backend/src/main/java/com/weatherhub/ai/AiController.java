@@ -4,6 +4,7 @@ import com.weatherhub.ai.agent.AgentOrchestrator;
 import com.weatherhub.ai.agent.AgentRuntime;
 import com.weatherhub.ai.dto.AgentRunRequest;
 import com.weatherhub.ai.dto.AgentRunVO;
+import com.weatherhub.ai.dto.AgentStreamEvent;
 import com.weatherhub.ai.dto.AgentSessionDetailVO;
 import com.weatherhub.ai.dto.AgentSessionVO;
 import com.weatherhub.ai.dto.AiStatusVO;
@@ -17,7 +18,10 @@ import com.weatherhub.ai.tool.McpToolCatalog;
 import com.weatherhub.common.ApiResponse;
 import com.weatherhub.config.AiProperties;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,7 +29,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -84,6 +90,40 @@ public class AiController {
     @PostMapping("/run")
     public ApiResponse<AgentRunVO> run(@Valid @RequestBody AgentRunRequest request, Authentication authentication) {
         return ApiResponse.ok(runtime.run(Long.valueOf(authentication.getName()), request));
+    }
+
+    @PostMapping(value = "/run/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter runStream(@Valid @RequestBody AgentRunRequest request, Authentication authentication) {
+        SseEmitter emitter = new SseEmitter(180_000L);
+        emitter.onTimeout(emitter::complete);
+        emitter.onError(ex -> emitter.complete());
+        Long userId = Long.valueOf(authentication.getName());
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        Thread.ofVirtual().name("ai-stream").start(() -> {
+            SecurityContextHolder.setContext(context);
+            try {
+                runtime.runStream(userId, request, event -> {
+                    try {
+                        emitter.send(SseEmitter.event().data(event, MediaType.APPLICATION_JSON));
+                    } catch (IOException ex) {
+                        throw new IllegalStateException(ex);
+                    }
+                });
+                emitter.complete();
+            } catch (Exception ex) {
+                try {
+                    String message = ex.getMessage() == null ? "Agent 执行失败" : ex.getMessage();
+                    emitter.send(SseEmitter.event().data(AgentStreamEvent.error(message), MediaType.APPLICATION_JSON));
+                } catch (Exception ignored) {
+                    // client already gone
+                }
+                emitter.complete();
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        });
+        return emitter;
     }
 
     @GetMapping("/sessions")

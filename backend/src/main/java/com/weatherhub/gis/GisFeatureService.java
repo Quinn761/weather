@@ -11,6 +11,8 @@ import org.springframework.util.StringUtils;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
@@ -18,27 +20,35 @@ import java.util.List;
 @ConditionalOnProperty(name = "weatherhub.gis.enabled", havingValue = "true", matchIfMissing = true)
 public class GisFeatureService {
     private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final DateTimeFormatter LAND_NAME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final GisFeatureMapper gisFeatureMapper;
 
     public List<GisFeatureVO> list() {
-        return gisFeatureMapper.selectAllFeatures().stream().map(GisFeatureVO::from).toList();
+        return gisFeatureMapper.selectAllFeatures().stream()
+                .filter(feature -> "POLYGON".equalsIgnoreCase(feature.getType()) || "SURFACE".equalsIgnoreCase(feature.getType()))
+                .map(GisFeatureVO::from)
+                .toList();
     }
 
     @Transactional("gisTransactionManager")
     public GisFeatureVO create(SaveGisFeatureRequest request) {
         String type = request.type().trim().toUpperCase();
-        if (!"POINT".equals(type) && !"POLYGON".equals(type) && !"SURFACE".equals(type)) {
-            throw new BusinessException("不支持的标注类型");
+        if (!"POLYGON".equals(type) && !"SURFACE".equals(type)) {
+            throw new BusinessException("只支持圈地地块标注");
         }
         GisFeature feature = new GisFeature();
-        feature.setName(request.name().trim());
+        feature.setName(generateLandName());
         feature.setType(type);
         feature.setGeometryJson(extractGeometryJson(request.geojson()));
         feature.setProperties(StringUtils.hasText(request.properties()) ? request.properties().trim() : "{}");
         feature.setGeojson(request.geojson().trim());
         gisFeatureMapper.insertFeature(feature);
         return GisFeatureVO.from(feature);
+    }
+
+    private String generateLandName() {
+        return "地块-" + LocalDateTime.now().format(LAND_NAME_FORMATTER);
     }
 
     @Transactional("gisTransactionManager")

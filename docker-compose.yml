@@ -51,6 +51,32 @@ services:
       retries: 10
       start_period: 5s
 
+  python-agent:
+    build:
+      context: ./python-agent
+      dockerfile: Dockerfile
+      args:
+        INSTALL_SAM2: ${INSTALL_SAM2:-false}
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
+      AI_MODEL: ${AI_MODEL:-deepseek-chat}
+      SAM2_CHECKPOINT: ${SAM2_CHECKPOINT:-}
+      SAM2_CONFIG: ${SAM2_CONFIG:-configs/sam2.1/sam2.1_hiera_t.yaml}
+      SAM2_DEVICE: ${SAM2_DEVICE:-cpu}
+    volumes:
+      - ./python-agent/checkpoints:/models:ro
+    ports:
+      - "${PYTHON_AGENT_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
   backend:
     build:
       context: ./backend
@@ -62,6 +88,8 @@ services:
       postgis:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      python-agent:
         condition: service_healthy
     environment:
       TZ: Asia/Shanghai
@@ -82,6 +110,8 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
       AI_MODEL: ${AI_MODEL:-deepseek-chat}
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
+      PYTHON_AGENT_URL: http://python-agent:8000
+      SAM2_SERVICE_URL: ${SAM2_SERVICE_URL:-http://python-agent:8000}
     expose:
       - "8080"
     ports:

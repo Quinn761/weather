@@ -33,6 +33,8 @@ spec:
           image: weather_backend:latest
           imagePullPolicy: IfNotPresent
           env:
+            - name: SAM2_SERVICE_URL
+              value: http://python-agent:8000
             - name: TZ
               valueFrom:
                 configMapKeyRef:
@@ -110,6 +112,11 @@ spec:
                 configMapKeyRef:
                   name: weather-config
                   key: AI_MODEL
+            - name: PYTHON_AGENT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: PYTHON_AGENT_URL
             - name: AI_API_KEY
               valueFrom:
                 secretKeyRef:

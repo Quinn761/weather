@@ -2,6 +2,7 @@ package com.weatherhub.ai.agent;
 
 import com.weatherhub.ai.dto.AgentRunRequest;
 import com.weatherhub.ai.dto.AgentRunVO;
+import com.weatherhub.ai.dto.AgentStreamEvent;
 import com.weatherhub.ai.dto.AgentTaskVO;
 import com.weatherhub.ai.dto.ChatRequest;
 import com.weatherhub.ai.dto.ChatResponse;
@@ -23,6 +24,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 @Service
 public class AgentRuntime {
@@ -34,12 +36,20 @@ public class AgentRuntime {
     private final RagService ragService;
     private final McpToolCatalog catalog;
     private final LlmClient llmClient;
+    private final PythonAgentClient pythonAgentClient;
 
-    public AgentRuntime(AgentWorkspace workspace, RagService ragService, McpToolCatalog catalog, LlmClient llmClient) {
+    public AgentRuntime(
+            AgentWorkspace workspace,
+            RagService ragService,
+            McpToolCatalog catalog,
+            LlmClient llmClient,
+            PythonAgentClient pythonAgentClient
+    ) {
         this.workspace = workspace;
         this.ragService = ragService;
         this.catalog = catalog;
         this.llmClient = llmClient;
+        this.pythonAgentClient = pythonAgentClient;
     }
 
     public ChatResponse chat(ChatRequest request) {
@@ -48,6 +58,16 @@ public class AgentRuntime {
     }
 
     public AgentRunVO run(Long userId, AgentRunRequest request) {
+        return run(userId, request, null);
+    }
+
+    public void runStream(Long userId, AgentRunRequest request, Consumer<AgentStreamEvent> sink) {
+        AgentRunVO result = run(userId, request, sink);
+        sink.accept(AgentStreamEvent.end());
+        sink.accept(AgentStreamEvent.done(result));
+    }
+
+    private AgentRunVO run(Long userId, AgentRunRequest request, Consumer<AgentStreamEvent> sink) {
         String question = request.message().trim();
         AiSession session = request.sessionId() == null
                 ? workspace.createSession(userId, question)
@@ -95,10 +115,12 @@ public class AgentRuntime {
                 continue;
             }
             if ("reviewer".equals(step.agent())) {
-                Review result = review(question, evidences);
+                Review result = sink == null
+                        ? reviewComplete(userId, session.getId(), question, evidences, usedTools, ragSources, trace)
+                        : reviewStream(userId, session.getId(), question, evidences, usedTools, ragSources, trace, sink);
                 plan.add(new AgentTaskVO(step.agent(), step.title(), "done", result.mode()));
                 trace.add(new TraceStep("prompt", "质检官汇总证据"));
-                trace.add(new TraceStep("llm", result.mode().equals("llm") ? "大模型生成最终回答" : "大模型不可用，本地质检官交卷"));
+                trace.add(new TraceStep("llm", reviewTrace(result.mode())));
                 workspace.remember(userId, "last_goal", question);
                 workspace.remember(userId, "last_mode", result.mode());
                 String payload = JSON.writeValueAsString(Map.of(
@@ -127,6 +149,96 @@ public class AgentRuntime {
         throw new BusinessException("Agent 未产出回答");
     }
 
+    private Review reviewComplete(
+            Long userId,
+            Long sessionId,
+            String question,
+            List<String> evidences,
+            List<String> usedTools,
+            List<String> ragSources,
+            List<TraceStep> trace
+    ) {
+        Review result = reviewWithPython(userId, sessionId, question, evidences, usedTools, ragSources, trace);
+        if (result == null) {
+            result = review(question, evidences);
+        }
+        return result;
+    }
+
+    private Review reviewStream(
+            Long userId,
+            Long sessionId,
+            String question,
+            List<String> evidences,
+            List<String> usedTools,
+            List<String> ragSources,
+            List<TraceStep> trace,
+            Consumer<AgentStreamEvent> sink
+    ) {
+        PythonAgentClient.ReviewResult python = pythonAgentClient.reviewStream(
+                userId,
+                sessionId,
+                question,
+                evidences,
+                usedTools,
+                ragSources,
+                trace,
+                text -> sink.accept(AgentStreamEvent.delta(text))
+        );
+        if (python != null) {
+            trace.clear();
+            trace.addAll(python.trace());
+            return new Review(python.mode(), python.reply());
+        }
+        String evidenceText = evidences.isEmpty() ? "没有额外证据。" : String.join("\n\n", evidences);
+        if (llmClient.configured()) {
+            try {
+                String answer = llmClient.chatStream(List.of(
+                        LlmMessage.system("你是 Weather Data Hub 的质检官。只用下面证据回答，不要编造数字。"
+                                + "如果证据里有 Open-Meteo：先给结论（会不会下雨、空气好不好、冷不冷），再引用降水概率、AQI、PM2.5、气温。"
+                                + "数字必须来自证据。用简体中文。"),
+                        LlmMessage.user("用户目标：" + question + "\n\n证据：\n" + evidenceText)
+                ), text -> sink.accept(AgentStreamEvent.delta(text)));
+                if (StringUtils.hasText(answer)) {
+                    return new Review("llm", answer.trim());
+                }
+            } catch (BusinessException ex) {
+                String local = localReply(question, evidenceText) + "\n\n（大模型未生成：" + ex.getMessage() + "）";
+                sink.accept(AgentStreamEvent.delta(local));
+                return new Review("local", local);
+            }
+        }
+        String local = localReply(question, evidenceText);
+        sink.accept(AgentStreamEvent.delta(local));
+        return new Review("local", local);
+    }
+
+    private Review reviewWithPython(
+            Long userId,
+            Long sessionId,
+            String question,
+            List<String> evidences,
+            List<String> usedTools,
+            List<String> ragSources,
+            List<TraceStep> trace
+    ) {
+        PythonAgentClient.ReviewResult result = pythonAgentClient.review(
+                userId,
+                sessionId,
+                question,
+                evidences,
+                usedTools,
+                ragSources,
+                trace
+        );
+        if (result == null) {
+            return null;
+        }
+        trace.clear();
+        trace.addAll(result.trace());
+        return new Review(result.mode(), result.reply());
+    }
+
     private Review review(String question, List<String> evidences) {
         String evidenceText = evidences.isEmpty() ? "没有额外证据。" : String.join("\n\n", evidences);
         if (llmClient.configured()) {
@@ -145,6 +257,19 @@ public class AgentRuntime {
             }
         }
         return new Review("local", localReply(question, evidenceText));
+    }
+
+    private static String reviewTrace(String mode) {
+        if ("python-llm".equals(mode)) {
+            return "Python Agent 调用大模型生成最终回答";
+        }
+        if ("python-local".equals(mode)) {
+            return "Python Agent 使用本地 reviewer 生成最终回答";
+        }
+        if ("llm".equals(mode)) {
+            return "大模型生成最终回答";
+        }
+        return "大模型不可用，本地质检官交卷";
     }
 
     private static String localReply(String question, String evidenceText) {
