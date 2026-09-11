@@ -7,6 +7,8 @@ This directory contains single-node Kubernetes manifests for K3s.
 - Frontend: `http://60.205.211.104:30000/`
 - Backend health: `http://60.205.211.104:30080/api/health`
 
+GitHub Actions 会构建带 SAM 2.1 tiny 权重的 `weather_python_agent` 镜像，并启动 `python-agent` Deployment。该服务只在集群内对后端开放（`http://python-agent:8000`），不映射公网端口。
+
 ## Apply
 
 Run these commands on the server from `/opt/weather`:

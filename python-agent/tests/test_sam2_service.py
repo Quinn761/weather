@@ -66,7 +66,9 @@ class Sam2Tests(unittest.TestCase):
         from app.main import app
         client = TestClient(app)
         with patch.dict(os.environ, {'AI_API_KEY': '', 'SAM2_CHECKPOINT': ''}):
-            self.assertEqual(client.get('/health').json()['status'], 'UP')
+            health = client.get('/health').json()
+            self.assertEqual(health['status'], 'UP')
+            self.assertFalse(health['sam2Configured'])
             review = client.post('/agent/review', json={
                 'user_id': 1, 'message': '测试', 'evidences': ['已有证据'],
             })

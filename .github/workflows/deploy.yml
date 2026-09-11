@@ -10,6 +10,7 @@ on:
     paths:
       - backend/**
       - frontend/**
+      - python-agent/**
       - k8s/**
       - .github/workflows/deploy.yml
   workflow_dispatch:
@@ -25,7 +26,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 70
     env:
       IMAGE_TAG: ${{ github.sha }}
     steps:
@@ -62,6 +63,20 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
+      - name: Build python-agent image with SAM 2.1
+        uses: docker/build-push-action@v6
+        with:
+          context: ./python-agent
+          load: true
+          build-args: |
+            INSTALL_SAM2=true
+            DOWNLOAD_SAM2_CHECKPOINT=true
+          tags: |
+            weather_python_agent:${{ github.sha }}
+            weather_python_agent:latest
+          cache-from: type=gha,scope=python-agent
+          cache-to: type=gha,mode=max,scope=python-agent
+
       - name: Save images and manifests
         run: |
           docker pull redis:7.4-alpine
@@ -70,6 +85,8 @@ jobs:
             weather_backend:latest \
             "weather_frontend:${IMAGE_TAG}" \
             weather_frontend:latest \
+            "weather_python_agent:${IMAGE_TAG}" \
+            weather_python_agent:latest \
             redis:7.4-alpine \
             | gzip -1 > weather-images.tar.gz
           tar czf weather-k8s.tar.gz k8s
@@ -83,7 +100,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           source: weather-images.tar.gz,weather-k8s.tar.gz
           target: /tmp
-          timeout: 15m
+          timeout: 25m
 
       - name: Import images and rollout
         uses: appleboy/ssh-action@v1.2.2
@@ -95,7 +112,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           envs: IMAGE_TAG,AI_API_KEY
-          command_timeout: 20m
+          command_timeout: 25m
           script: |
             set -euo pipefail
             IMAGE_TAG="${IMAGE_TAG:-${{ github.sha }}}"
@@ -117,6 +134,7 @@ jobs:
 
             kubectl apply -f "$K8SDIR/01-config.yaml"
             kubectl apply -f "$K8SDIR/02-redis.yaml"
+            kubectl apply -f "$K8SDIR/05-python-agent.yaml"
             kubectl apply -f "$K8SDIR/03-backend.yaml"
             kubectl apply -f "$K8SDIR/04-frontend.yaml"
             kubectl -n weather rollout status deploy/redis --timeout=120s
@@ -135,12 +153,16 @@ jobs:
               echo "未配置 AI_API_KEY，质检官将走本地交卷"
             fi
 
+            kubectl -n weather set image deploy/python-agent "python-agent=weather_python_agent:${IMAGE_TAG}"
             kubectl -n weather set image deploy/backend "backend=weather_backend:${IMAGE_TAG}"
             kubectl -n weather set image deploy/frontend "frontend=weather_frontend:${IMAGE_TAG}"
 
             dump() {
               echo "===== pods ====="
               kubectl -n weather get pods -o wide || true
+              echo "===== python-agent ====="
+              kubectl -n weather describe deploy/python-agent | tail -60 || true
+              kubectl -n weather logs deploy/python-agent --tail=120 || true
               echo "===== backend ====="
               kubectl -n weather describe deploy/backend | tail -60 || true
               kubectl -n weather logs deploy/backend --tail=120 || true
@@ -149,6 +171,8 @@ jobs:
               exit 1
             }
 
+            kubectl -n weather rollout status deploy/python-agent --timeout=240s || dump
+            kubectl -n weather exec deploy/python-agent -- python -c "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)); assert d.get('status')=='UP' and d.get('sam2Configured') is True, d" || dump
             kubectl -n weather rollout status deploy/backend --timeout=360s || dump
             kubectl -n weather rollout status deploy/frontend --timeout=120s || dump
             curl -fsS "http://127.0.0.1:30080/api/health" || dump

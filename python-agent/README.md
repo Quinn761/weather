@@ -59,9 +59,9 @@ SAM2_DEVICE=cpu
 若使用独立 GPU 推理服务，只需将后端 `SAM2_SERVICE_URL` 指向运行同一 Python 接口的服务，
 不必在默认 python-agent 镜像安装 SAM。未启用 SAM 时原有 Agent 和 Roboflow 功能仍可运行。
 
-Kubernetes 的后端默认连接 `http://python-agent:8000`。启用集群内推理时，需要使用
-`--build-arg INSTALL_SAM2=true` 构建 Python 镜像，将权重卷挂载到该容器，并设置同样的
-`SAM2_CHECKPOINT`、`SAM2_CONFIG`、`SAM2_DEVICE` 环境变量；默认清单不包含模型权重。
+Kubernetes 的后端默认连接 `http://python-agent:8000`。GitHub Actions 生产流水线会以
+`INSTALL_SAM2=true` 构建 Python 镜像，下载 tiny 权重到 `/models/sam2.1_hiera_tiny.pt`，
+并启动 `k8s/05-python-agent.yaml`。默认清单不把推理端口暴露到公网。
 
 ### 验证
 

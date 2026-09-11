@@ -1,5 +1,6 @@
 ﻿import json
 import os
+from pathlib import Path
 from typing import Any, Iterator
 
 from fastapi import FastAPI
@@ -55,6 +56,11 @@ app.include_router(sam2_router)
 
 def ai_configured() -> bool:
     return bool(os.getenv("AI_API_KEY", "").strip())
+
+
+def sam2_configured() -> bool:
+    checkpoint = os.getenv("SAM2_CHECKPOINT", "").strip()
+    return bool(checkpoint and Path(checkpoint).is_file())
 
 
 
@@ -150,6 +156,7 @@ def health() -> dict[str, Any]:
         "status": "UP",
         "name": "weather-python-agent",
         "llmConfigured": ai_configured(),
+        "sam2Configured": sam2_configured(),
     }
 
 
