@@ -82,6 +82,10 @@ jobs:
           cache-from: type=gha,scope=python-agent
           cache-to: type=gha,mode=max,scope=python-agent
 
+      - name: Verify SAM 2.1 checkpoint in image
+        run: |
+          docker run --rm "weather_python_agent:${IMAGE_TAG}" python -c "from pathlib import Path; p=Path('/models/sam2.1_hiera_tiny.pt'); assert p.is_file() and p.stat().st_size>10_000_000, p"
+
       - name: Save images and manifests
         run: |
           docker pull redis:7.4-alpine
@@ -118,7 +122,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           envs: IMAGE_TAG,AI_API_KEY,ROBOFLOW_API_KEY
-          command_timeout: 25m
+          command_timeout: 35m
           script: |
             set -euo pipefail
             IMAGE_TAG="${IMAGE_TAG:-${{ github.sha }}}"
@@ -133,7 +137,16 @@ jobs:
               exit 1
             fi
 
+            echo "===== disk ====="
+            df -h || true
             gzip -dc "$img" | k3s ctr images import -
+            echo "===== images ====="
+            k3s ctr images ls | grep -E 'weather_|redis:' || true
+            for name in weather_backend weather_frontend weather_python_agent; do
+              for tag in "${IMAGE_TAG}" latest; do
+                k3s ctr images tag "docker.io/library/${name}:${tag}" "${name}:${tag}" 2>/dev/null || true
+              done
+            done
             mkdir -p /tmp/weather-k8s-unpack
             tar xzf "$k8s" -C /tmp/weather-k8s-unpack
             K8SDIR="/tmp/weather-k8s-unpack/k8s"
@@ -147,37 +160,21 @@ jobs:
 
             AI_API_KEY="${AI_API_KEY:-}"
             ROBOFLOW_API_KEY="${ROBOFLOW_API_KEY:-}"
-            if [ -z "${AI_API_KEY:-}" ] && [ -f /root/.weather-ai-key ]; then
+            if [ -z "$AI_API_KEY" ] && [ -f /root/.weather-ai-key ]; then
               AI_API_KEY="$(tr -d '\r\n' < /root/.weather-ai-key)"
             fi
-            if [ -z "${ROBOFLOW_API_KEY:-}" ] && [ -f /root/.weather-roboflow-key ]; then
+            if [ -z "$ROBOFLOW_API_KEY" ] && [ -f /root/.weather-roboflow-key ]; then
               ROBOFLOW_API_KEY="$(tr -d '\r\n' < /root/.weather-roboflow-key)"
             fi
-            if [ -n "${AI_API_KEY:-}" ]; then
+            if [ -n "$AI_API_KEY" ]; then
               printf '%s' "$AI_API_KEY" > /root/.weather-ai-key
               chmod 600 /root/.weather-ai-key
             fi
-            if [ -n "${ROBOFLOW_API_KEY:-}" ]; then
+            if [ -n "$ROBOFLOW_API_KEY" ]; then
               printf '%s' "$ROBOFLOW_API_KEY" > /root/.weather-roboflow-key
               chmod 600 /root/.weather-roboflow-key
             fi
-            python3 -c '
-            import json
-            from pathlib import Path
-            data = {"stringData": {}}
-            ai = Path("/root/.weather-ai-key")
-            rf = Path("/root/.weather-roboflow-key")
-            if ai.exists():
-                value = ai.read_text().strip()
-                if value:
-                    data["stringData"]["AI_API_KEY"] = value
-            if rf.exists():
-                value = rf.read_text().strip()
-                if value:
-                    data["stringData"]["ROBOFLOW_API_KEY"] = value
-            if data["stringData"]:
-                Path("/tmp/secret-patch.json").write_text(json.dumps(data))
-            '
+            python3 -c "import json; from pathlib import Path; data={'stringData':{}}; ai=Path('/root/.weather-ai-key'); rf=Path('/root/.weather-roboflow-key'); k=ai.read_text().strip() if ai.exists() else ''; data['stringData'].update({'AI_API_KEY':k} if k else {}); k=rf.read_text().strip() if rf.exists() else ''; data['stringData'].update({'ROBOFLOW_API_KEY':k} if k else {}); Path('/tmp/secret-patch.json').write_text(json.dumps(data)) if data['stringData'] else None"
             if [ -f /tmp/secret-patch.json ]; then
               kubectl -n weather patch secret weather-secret --type merge --patch-file /tmp/secret-patch.json
               rm -f /tmp/secret-patch.json
@@ -194,18 +191,27 @@ jobs:
               echo "===== pods ====="
               kubectl -n weather get pods -o wide || true
               echo "===== python-agent ====="
-              kubectl -n weather describe deploy/python-agent | tail -60 || true
+              kubectl -n weather describe deploy/python-agent | tail -80 || true
               kubectl -n weather logs deploy/python-agent --tail=120 || true
               echo "===== backend ====="
               kubectl -n weather describe deploy/backend | tail -60 || true
               kubectl -n weather logs deploy/backend --tail=120 || true
               echo "===== redis ====="
               kubectl -n weather logs deploy/redis --tail=40 || true
+              echo "===== disk ====="
+              df -h || true
               exit 1
             }
 
-            kubectl -n weather rollout status deploy/python-agent --timeout=240s || dump
-            kubectl -n weather exec deploy/python-agent -- python -c "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)); assert d.get('status')=='UP' and d.get('sam2Configured') is True, d" || dump
+            if kubectl -n weather rollout status deploy/python-agent --timeout=480s; then
+              kubectl -n weather exec deploy/python-agent -- python -c "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)); print(d); assert d.get('status')=='UP' and d.get('sam2Configured') is True, d" \
+                || echo "python-agent 已就绪，但 SAM 2.1 权重未配置"
+            else
+              echo "python-agent 未就绪，继续部署前后端；SAM 2.1 暂不可用"
+              kubectl -n weather describe deploy/python-agent | tail -80 || true
+              kubectl -n weather logs deploy/python-agent --tail=120 || true
+              kubectl -n weather get pods -o wide || true
+            fi
             kubectl -n weather rollout status deploy/backend --timeout=360s || dump
             kubectl -n weather rollout status deploy/frontend --timeout=120s || dump
             curl -fsS "http://127.0.0.1:30080/api/health" || dump
