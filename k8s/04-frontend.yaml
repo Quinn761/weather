@@ -32,6 +32,13 @@ spec:
         - name: frontend
           image: weather_frontend:latest
           imagePullPolicy: IfNotPresent
+          env:
+            - name: ROBOFLOW_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: ROBOFLOW_API_KEY
+                  optional: true
           ports:
             - containerPort: 80
               name: http

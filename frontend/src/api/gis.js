@@ -19,9 +19,9 @@ export function runSam2Delineation(data) {
 }
 
 export async function runRoboflowWorkflow({ imageBase64, corners }) {
-  const apiKey = import.meta.env.VITE_ROBOFLOW_API_KEY
+  const apiKey = roboflowApiKey()
   if (!apiKey) {
-    throw new Error('未配置 VITE_ROBOFLOW_API_KEY')
+    throw new Error('未配置 Roboflow API Key：本地写入 .env 的 VITE_ROBOFLOW_API_KEY，线上在 GitHub Secrets 设置 ROBOFLOW_API_KEY')
   }
   if (!imageBase64) {
     throw new Error('缺少瓦片图片')
@@ -61,6 +61,13 @@ export async function runRoboflowWorkflow({ imageBase64, corners }) {
   } catch {
     throw new Error('Roboflow 返回了无法解析的结果')
   }
+}
+
+function roboflowApiKey() {
+  const runtime = typeof window !== 'undefined'
+    ? String(window.__APP_CONFIG__?.roboflowApiKey || '').trim()
+    : ''
+  return runtime || String(import.meta.env.VITE_ROBOFLOW_API_KEY || '').trim()
 }
 
 function workflowFetchUrl() {

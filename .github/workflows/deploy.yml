@@ -2,6 +2,9 @@
 #   DEPLOY_HOST     e.g. 60.205.211.104
 #   DEPLOY_USER     e.g. root
 #   DEPLOY_SSH_KEY  private key whose public half is in the server authorized_keys
+# Optional:
+#   AI_API_KEY
+#   ROBOFLOW_API_KEY  same value as local VITE_ROBOFLOW_API_KEY; used by GIS AI 圈地
 name: Deploy
 
 on:
@@ -57,6 +60,8 @@ jobs:
         with:
           context: ./frontend
           load: true
+          build-args: |
+            VITE_ROBOFLOW_API_KEY=${{ secrets.ROBOFLOW_API_KEY }}
           tags: |
             weather_frontend:${{ github.sha }}
             weather_frontend:latest
@@ -107,11 +112,12 @@ jobs:
         env:
           IMAGE_TAG: ${{ github.sha }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: IMAGE_TAG,AI_API_KEY
+          envs: IMAGE_TAG,AI_API_KEY,ROBOFLOW_API_KEY
           command_timeout: 25m
           script: |
             set -euo pipefail
@@ -139,18 +145,45 @@ jobs:
             kubectl apply -f "$K8SDIR/04-frontend.yaml"
             kubectl -n weather rollout status deploy/redis --timeout=120s
 
+            AI_API_KEY="${AI_API_KEY:-}"
+            ROBOFLOW_API_KEY="${ROBOFLOW_API_KEY:-}"
             if [ -z "${AI_API_KEY:-}" ] && [ -f /root/.weather-ai-key ]; then
               AI_API_KEY="$(tr -d '\r\n' < /root/.weather-ai-key)"
+            fi
+            if [ -z "${ROBOFLOW_API_KEY:-}" ] && [ -f /root/.weather-roboflow-key ]; then
+              ROBOFLOW_API_KEY="$(tr -d '\r\n' < /root/.weather-roboflow-key)"
             fi
             if [ -n "${AI_API_KEY:-}" ]; then
               printf '%s' "$AI_API_KEY" > /root/.weather-ai-key
               chmod 600 /root/.weather-ai-key
-              python3 -c 'import json; from pathlib import Path; k=Path("/root/.weather-ai-key").read_text().strip(); Path("/tmp/ai-patch.json").write_text(json.dumps({"stringData":{"AI_API_KEY":k}}))'
-              kubectl -n weather patch secret weather-secret --type merge --patch-file /tmp/ai-patch.json
-              rm -f /tmp/ai-patch.json
-              echo "已写入 AI_API_KEY（${#AI_API_KEY} 字符）"
+            fi
+            if [ -n "${ROBOFLOW_API_KEY:-}" ]; then
+              printf '%s' "$ROBOFLOW_API_KEY" > /root/.weather-roboflow-key
+              chmod 600 /root/.weather-roboflow-key
+            fi
+            python3 -c '
+            import json
+            from pathlib import Path
+            data = {"stringData": {}}
+            ai = Path("/root/.weather-ai-key")
+            rf = Path("/root/.weather-roboflow-key")
+            if ai.exists():
+                value = ai.read_text().strip()
+                if value:
+                    data["stringData"]["AI_API_KEY"] = value
+            if rf.exists():
+                value = rf.read_text().strip()
+                if value:
+                    data["stringData"]["ROBOFLOW_API_KEY"] = value
+            if data["stringData"]:
+                Path("/tmp/secret-patch.json").write_text(json.dumps(data))
+            '
+            if [ -f /tmp/secret-patch.json ]; then
+              kubectl -n weather patch secret weather-secret --type merge --patch-file /tmp/secret-patch.json
+              rm -f /tmp/secret-patch.json
+              echo "已写入密钥：AI_API_KEY=${#AI_API_KEY} 字符，ROBOFLOW_API_KEY=${#ROBOFLOW_API_KEY} 字符"
             else
-              echo "未配置 AI_API_KEY，质检官将走本地交卷"
+              echo "未配置 AI_API_KEY / ROBOFLOW_API_KEY"
             fi
 
             kubectl -n weather set image deploy/python-agent "python-agent=weather_python_agent:${IMAGE_TAG}"
