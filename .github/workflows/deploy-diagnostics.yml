@@ -1,0 +1,46 @@
+name: Deploy diagnostics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-diagnostics.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Inspect deployment host
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 6m
+          script: |
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            export PATH="/usr/local/bin:/usr/bin:$PATH"
+            check() {
+              echo "== $1 $(date -Is) =="
+              shift
+              timeout --kill-after=3s 20s "$@"
+              echo "exit=$?"
+            }
+            check uptime uptime
+            check memory free -h
+            check disk df -h /
+            check pressure vmstat 1 5
+            # Command names only: process arguments can contain deployment secrets.
+            check processes ps -eo pid,ppid,stat,comm,rss,pcpu --sort=-rss
+            check k3s-service systemctl is-active k3s
+            check api-ready kubectl --request-timeout=10s get --raw=/readyz
+            check node kubectl --request-timeout=10s get nodes
+            check pods kubectl --request-timeout=10s -n weather get pods -o wide
+            check python-replicas kubectl --request-timeout=10s -n weather get deploy python-agent -o wide
+            check containerd k3s ctr version
+            check deploy-lock flock -n /var/lock/weather-deploy.lock true
+            echo "== diagnostics complete =="
