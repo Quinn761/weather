@@ -70,35 +70,14 @@ jobs:
       - name: Save images and manifests
         run: |
           # One tag per image (layers are shared); retag :latest on the server after import.
-          # zstd shrinks the upload a lot versus gzip -1 on the slow path to the deploy host.
+          # pigz is gzip-compatible, so the server does not need extra packages.
+          sudo apt-get update -qq && sudo apt-get install -y pigz
           docker save \
             "weather_backend:${IMAGE_TAG}" \
             "weather_frontend:${IMAGE_TAG}" \
-            | zstd -T0 -3 -o weather-images.tar.zst
+            | pigz -3 > weather-images.tar.gz
           tar czf weather-k8s.tar.gz k8s
-          ls -lh weather-images.tar.zst weather-k8s.tar.gz
-
-      - name: Free disk on server
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          command_timeout: 5m
-          script: |
-            set -euo pipefail
-            export PATH="/usr/local/bin:/usr/bin:$PATH"
-            echo "== before cleanup =="
-            df -h / /tmp 2>/dev/null || df -h /
-            free -h || true
-            rm -f /tmp/weather-images.tar.gz /tmp/weather-images.tar.zst /tmp/weather-k8s.tar.gz
-            rm -rf /tmp/weather-k8s-unpack
-            # Drop unused image blobs so import has room; in-use layers stay.
-            k3s crictl rmi --prune >/tmp/weather-prune.log 2>&1 || true
-            tail -n 20 /tmp/weather-prune.log || true
-            command -v zstd >/dev/null || { apt-get update -qq && apt-get install -y zstd; }
-            echo "== after cleanup =="
-            df -h / /tmp 2>/dev/null || df -h /
+          ls -lh weather-images.tar.gz weather-k8s.tar.gz
 
       - name: Copy artifacts to server
         uses: appleboy/scp-action@v0.1.7
@@ -106,7 +85,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: weather-images.tar.zst,weather-k8s.tar.gz
+          source: weather-images.tar.gz,weather-k8s.tar.gz
           target: /tmp
           timeout: 25m
 
@@ -129,24 +108,48 @@ jobs:
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             export PATH="/usr/local/bin:/usr/bin:$PATH"
 
-            img="$(find /tmp -name weather-images.tar.zst -type f | head -n 1)"
+            echo "== host =="
+            df -h / || true
+            free -h || true
+            # Stale imports from a previous timed-out run can lock containerd.
+            timeout 10s pkill -f 'ctr images import' || true
+            timeout 10s pkill -f 'gzip -dc /tmp/weather-images' || true
+            rm -f /tmp/weather-images.tar.zst
+            rm -rf /tmp/weather-k8s-unpack
+
+            # Tiny node (~3.4Gi): pause SAM during import/rollout so JVM can start.
+            PAUSED_PYTHON_AGENT=0
+            if kubectl -n weather get deploy python-agent >/dev/null 2>&1; then
+              echo "== scale python-agent to 0 for free RAM =="
+              kubectl -n weather scale deploy/python-agent --replicas=0
+              PAUSED_PYTHON_AGENT=1
+              sleep 8
+              free -h || true
+            fi
+
+            img="$(find /tmp -name weather-images.tar.gz -type f | head -n 1)"
             k8s="$(find /tmp -name weather-k8s.tar.gz -type f | head -n 1)"
             if [ -z "$img" ] || [ -z "$k8s" ]; then
               echo "找不到上传的制品"
               ls -la /tmp
+              if [ "$PAUSED_PYTHON_AGENT" = "1" ]; then
+                kubectl -n weather scale deploy/python-agent --replicas=1 || true
+              fi
               exit 1
             fi
 
             echo "== artifacts =="
             ls -lh "$img" "$k8s"
-            df -h / || true
 
             echo "== import start $(date -Is) =="
             # Fail fast with diagnostics instead of hanging the whole SSH step.
-            if ! timeout 8m bash -c "zstd -dc \"$img\" | k3s ctr images import -"; then
+            if ! timeout 8m bash -c "gzip -dc \"$img\" | k3s ctr images import -"; then
               echo "镜像导入失败或超时"
               df -h / || true
               free -h || true
+              if [ "$PAUSED_PYTHON_AGENT" = "1" ]; then
+                kubectl -n weather scale deploy/python-agent --replicas=1 || true
+              fi
               exit 1
             fi
             echo "== import done $(date -Is) =="
@@ -217,6 +220,9 @@ jobs:
               free -h || true
               echo "===== disk ====="
               df -h || true
+              if [ "${PAUSED_PYTHON_AGENT:-0}" = "1" ]; then
+                kubectl -n weather scale deploy/python-agent --replicas=1 || true
+              fi
               exit 1
             }
 
@@ -243,6 +249,10 @@ jobs:
             wait_rollout frontend 120 || dump
             curl -fsS "http://127.0.0.1:30080/api/health" || dump
             echo
+            if [ "$PAUSED_PYTHON_AGENT" = "1" ]; then
+              echo "== restore python-agent =="
+              kubectl -n weather scale deploy/python-agent --replicas=1 || true
+            fi
             kubectl -n weather get pods
             rm -f "$k8s"
             rm -rf /tmp/weather-k8s-unpack
