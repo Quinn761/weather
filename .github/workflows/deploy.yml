@@ -19,7 +19,7 @@ on:
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -86,7 +86,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           source: weather-images.tar.gz,weather-k8s.tar.gz
-          target: /tmp
+          target: /tmp/weather-deploy/${{ github.run_id }}-${{ github.run_attempt }}
           timeout: 25m
 
       - name: Import images and rollout
@@ -96,45 +96,61 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
           SAM2_SERVICE_URL: ${{ vars.SAM2_SERVICE_URL }}
+          DEPLOY_DIR: /tmp/weather-deploy/${{ github.run_id }}-${{ github.run_attempt }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: IMAGE_TAG,AI_API_KEY,ROBOFLOW_API_KEY,SAM2_SERVICE_URL
+          envs: IMAGE_TAG,AI_API_KEY,ROBOFLOW_API_KEY,SAM2_SERVICE_URL,DEPLOY_DIR
           command_timeout: 25m
           script: |
             set -euo pipefail
             IMAGE_TAG="${IMAGE_TAG:-${{ github.sha }}}"
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             export PATH="/usr/local/bin:/usr/bin:$PATH"
+            export DEPLOY_DIR
+            umask 077
 
             echo "== host =="
             df -h / || true
             free -h || true
-            # Stale imports from a previous timed-out run can lock containerd.
-            timeout 10s pkill -f 'ctr images import' || true
-            timeout 10s pkill -f 'gzip -dc /tmp/weather-images' || true
-            rm -f /tmp/weather-images.tar.zst
-            rm -rf /tmp/weather-k8s-unpack
+            # Do not use pkill -f here: drone-ssh includes this entire script in
+            # the parent shell command line, so it can terminate its own deploy.
+            [[ "$DEPLOY_DIR" =~ ^/tmp/weather-deploy/[0-9]+-[0-9]+$ ]] || {
+              echo "Invalid deployment artifact directory"; exit 1;
+            }
+            exec 9>/var/lock/weather-deploy.lock
+            flock -w 120 9 || { echo "Another deployment is still running"; exit 1; }
+            PYTHON_REPLICAS=""
+            restore_python() {
+              local status=$?
+              trap - EXIT
+              if [ -n "$PYTHON_REPLICAS" ]; then
+                kubectl --request-timeout=20s -n weather scale deploy/python-agent --replicas="$PYTHON_REPLICAS" || {
+                  echo "Failed to restore python-agent replicas=$PYTHON_REPLICAS"
+                  status=1
+                }
+              fi
+              exit "$status"
+            }
+            trap restore_python EXIT
+            trap 'exit 143' TERM
+            trap 'exit 130' INT
 
             # Tiny node (~3.4Gi): pause SAM during import/rollout so JVM can start.
-            PAUSED_PYTHON_AGENT=0
             if kubectl -n weather get deploy python-agent >/dev/null 2>&1; then
               echo "== scale python-agent to 0 for free RAM =="
+              PYTHON_REPLICAS="$(kubectl -n weather get deploy python-agent -o jsonpath='{.spec.replicas}')"
               kubectl -n weather scale deploy/python-agent --replicas=0
-              PAUSED_PYTHON_AGENT=1
-              sleep 8
+              kubectl -n weather wait --for=delete pod -l app=python-agent --timeout=90s
               free -h || true
             fi
 
-            img="$(find /tmp -name weather-images.tar.gz -type f | head -n 1)"
-            k8s="$(find /tmp -name weather-k8s.tar.gz -type f | head -n 1)"
-            if [ -z "$img" ] || [ -z "$k8s" ]; then
+            img="$DEPLOY_DIR/weather-images.tar.gz"
+            k8s="$DEPLOY_DIR/weather-k8s.tar.gz"
+            if [ ! -s "$img" ] || [ ! -s "$k8s" ]; then
               echo "找不到上传的制品"
-              ls -la /tmp
-              if [ "$PAUSED_PYTHON_AGENT" = "1" ]; then
-                kubectl -n weather scale deploy/python-agent --replicas=1 || true
-              fi
+              ls -la "$DEPLOY_DIR"
               exit 1
             fi
 
@@ -143,13 +159,10 @@ jobs:
 
             echo "== import start $(date -Is) =="
             # Fail fast with diagnostics instead of hanging the whole SSH step.
-            if ! timeout 8m bash -c "gzip -dc \"$img\" | k3s ctr images import -"; then
+            if ! timeout --kill-after=30s 8m bash -o pipefail -c 'gzip -dc "$1" | k3s ctr images import -' bash "$img"; then
               echo "镜像导入失败或超时"
               df -h / || true
               free -h || true
-              if [ "$PAUSED_PYTHON_AGENT" = "1" ]; then
-                kubectl -n weather scale deploy/python-agent --replicas=1 || true
-              fi
               exit 1
             fi
             echo "== import done $(date -Is) =="
@@ -159,9 +172,9 @@ jobs:
               k3s ctr images tag "weather_frontend:${IMAGE_TAG}" weather_frontend:latest || true
             rm -f "$img"
 
-            mkdir -p /tmp/weather-k8s-unpack
-            tar xzf "$k8s" -C /tmp/weather-k8s-unpack
-            K8SDIR="/tmp/weather-k8s-unpack/k8s"
+            mkdir -p "$DEPLOY_DIR/manifests"
+            tar xzf "$k8s" -C "$DEPLOY_DIR/manifests"
+            K8SDIR="$DEPLOY_DIR/manifests/k8s"
 
             SAM2_URL="${SAM2_SERVICE_URL:-http://python-agent:8000}"
             # Bake image tags + SAM URL into manifests so apply triggers a single rollout.
@@ -172,8 +185,6 @@ jobs:
             echo "== apply manifests =="
             kubectl apply -f "$K8SDIR/01-config.yaml"
             kubectl apply -f "$K8SDIR/02-redis.yaml"
-            kubectl apply -f "$K8SDIR/03-backend.yaml"
-            kubectl apply -f "$K8SDIR/04-frontend.yaml"
             kubectl -n weather rollout status deploy/redis --timeout=120s
 
             AI_API_KEY="${AI_API_KEY:-}"
@@ -192,14 +203,17 @@ jobs:
               printf '%s' "$ROBOFLOW_API_KEY" > /root/.weather-roboflow-key
               chmod 600 /root/.weather-roboflow-key
             fi
-            python3 -c "import json; from pathlib import Path; data={'stringData':{}}; ai=Path('/root/.weather-ai-key'); rf=Path('/root/.weather-roboflow-key'); k=ai.read_text().strip() if ai.exists() else ''; data['stringData'].update({'AI_API_KEY':k} if k else {}); k=rf.read_text().strip() if rf.exists() else ''; data['stringData'].update({'ROBOFLOW_API_KEY':k} if k else {}); Path('/tmp/secret-patch.json').write_text(json.dumps(data)) if data['stringData'] else None"
-            if [ -f /tmp/secret-patch.json ]; then
-              kubectl -n weather patch secret weather-secret --type merge --patch-file /tmp/secret-patch.json
-              rm -f /tmp/secret-patch.json
+            python3 -c "import json,os; from pathlib import Path; data={'stringData':{}}; ai=Path('/root/.weather-ai-key'); rf=Path('/root/.weather-roboflow-key'); k=ai.read_text().strip() if ai.exists() else ''; data['stringData'].update({'AI_API_KEY':k} if k else {}); k=rf.read_text().strip() if rf.exists() else ''; data['stringData'].update({'ROBOFLOW_API_KEY':k} if k else {}); (Path(os.environ['DEPLOY_DIR'])/'secret-patch.json').write_text(json.dumps(data)) if data['stringData'] else None"
+            if [ -f "$DEPLOY_DIR/secret-patch.json" ]; then
+              kubectl -n weather patch secret weather-secret --type merge --patch-file "$DEPLOY_DIR/secret-patch.json"
+              rm -f "$DEPLOY_DIR/secret-patch.json"
               echo "已写入密钥：AI_API_KEY=${#AI_API_KEY} 字符，ROBOFLOW_API_KEY=${#ROBOFLOW_API_KEY} 字符"
             else
               echo "未配置 AI_API_KEY / ROBOFLOW_API_KEY"
             fi
+
+            kubectl apply -f "$K8SDIR/03-backend.yaml"
+            kubectl apply -f "$K8SDIR/04-frontend.yaml"
 
             # SAM is deployed independently because its model image is large.
             if [ -z "${SAM2_SERVICE_URL:-}" ] && ! kubectl -n weather get service python-agent >/dev/null 2>&1; then
@@ -220,9 +234,6 @@ jobs:
               free -h || true
               echo "===== disk ====="
               df -h || true
-              if [ "${PAUSED_PYTHON_AGENT:-0}" = "1" ]; then
-                kubectl -n weather scale deploy/python-agent --replicas=1 || true
-              fi
               exit 1
             }
 
@@ -249,10 +260,6 @@ jobs:
             wait_rollout frontend 120 || dump
             curl -fsS "http://127.0.0.1:30080/api/health" || dump
             echo
-            if [ "$PAUSED_PYTHON_AGENT" = "1" ]; then
-              echo "== restore python-agent =="
-              kubectl -n weather scale deploy/python-agent --replicas=1 || true
-            fi
             kubectl -n weather get pods
             rm -f "$k8s"
-            rm -rf /tmp/weather-k8s-unpack
+            rm -rf "$DEPLOY_DIR/manifests"
