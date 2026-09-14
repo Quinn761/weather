@@ -50,6 +50,14 @@ public class McpToolCatalog {
         if (tool == null) {
             return "未知工具：" + name;
         }
+        String permission = switch (name) {
+            case "get_dashboard_overview" -> "dashboard:view";
+            case "list_gis_features" -> "gis:read";
+            default -> "";
+        };
+        if (!permission.isEmpty() && !ToolAccess.allowed(permission)) {
+            return "没有访问权限：" + permission + "。未读取该数据。";
+        }
         JsonNode args = arguments == null || arguments.isNull() ? JSON.readTree("{}") : arguments;
         try {
             return tool.execute(args);

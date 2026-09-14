@@ -13,6 +13,7 @@ on:
     paths:
       - backend/**
       - frontend/**
+      - python-agent/app/**
       - k8s/**
       - .github/workflows/deploy.yml
   workflow_dispatch:
@@ -76,6 +77,8 @@ jobs:
             "weather_backend:${IMAGE_TAG}" \
             "weather_frontend:${IMAGE_TAG}" \
             | pigz -3 > weather-images.tar.gz
+          mkdir -p k8s/python-agent-app
+          cp python-agent/app/*.py k8s/python-agent-app/
           tar czf weather-k8s.tar.gz k8s
           ls -lh weather-images.tar.gz weather-k8s.tar.gz
 
@@ -142,6 +145,9 @@ jobs:
                   echo "Failed to restore python-agent replicas=$PYTHON_REPLICAS"
                   status=1
                 }
+                if [ "$status" -eq 0 ] && [ "$PYTHON_REPLICAS" -gt 0 ]; then
+                  kubectl -n weather rollout status deploy/python-agent --timeout=120s || status=1
+                fi
               fi
               exit "$status"
             }
@@ -223,6 +229,15 @@ jobs:
               echo "已写入密钥：AI_API_KEY=${#AI_API_KEY} 字符，ROBOFLOW_API_KEY=${#ROBOFLOW_API_KEY} 字符"
             else
               echo "未配置 AI_API_KEY / ROBOFLOW_API_KEY"
+            fi
+
+            if [ -n "$PYTHON_REPLICAS" ]; then
+              echo "== publish Python Agent source =="
+              CODE_CONFIG="python-agent-code-${IMAGE_TAG:0:12}"
+              kubectl -n weather create configmap "$CODE_CONFIG" --from-file="$K8SDIR/python-agent-app" --dry-run=client -o yaml | kubectl apply -f -
+              kubectl -n weather get deploy python-agent -o json | python3 "$K8SDIR/python_code_patch.py" "$CODE_CONFIG" > "$DEPLOY_DIR/python-patch.json"
+              kubectl -n weather patch deploy python-agent --type strategic --patch-file "$DEPLOY_DIR/python-patch.json"
+              rm -f "$DEPLOY_DIR/python-patch.json"
             fi
 
             kubectl apply -f "$K8SDIR/03-backend.yaml"

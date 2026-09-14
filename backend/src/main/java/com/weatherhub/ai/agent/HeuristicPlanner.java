@@ -21,7 +21,8 @@ public final class HeuristicPlanner {
                 "天气预报", "带伞", "冷不冷", "热不热",
                 "空气", "空气质量", "雾霾", "pm2", "pm10", "aqi", "污染");
         boolean know = contains(text, "jwt", "rbac", "权限", "黑名单", "redis", "mcp", "rag", "agent", "双数据源", "事务",
-                "知识库", "系统原理", "系统架构", "链路", "spring", "security") && !weather;
+                "知识库", "系统原理", "系统架构", "本项目", "这个项目", "当前系统", "本系统", "这个系统",
+                "功能", "部署", "sam", "roboflow", "链路", "spring", "security") && !weather;
 
         if (me) {
             steps.add(new PlanStep("operator", "执行官查询当前登录用户和权限", "get_current_user"));

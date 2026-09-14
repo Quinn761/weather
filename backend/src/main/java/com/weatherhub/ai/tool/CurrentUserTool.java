@@ -2,6 +2,7 @@ package com.weatherhub.ai.tool;
 
 import com.weatherhub.user.User;
 import com.weatherhub.user.UserMapper;
+import com.weatherhub.rbac.RoleMapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -15,9 +16,11 @@ import java.util.stream.Collectors;
 public class CurrentUserTool implements AiTool {
 
     private final UserMapper userMapper;
+    private final RoleMapper roleMapper;
 
-    public CurrentUserTool(UserMapper userMapper) {
+    public CurrentUserTool(UserMapper userMapper, RoleMapper roleMapper) {
         this.userMapper = userMapper;
+        this.roleMapper = roleMapper;
     }
 
     @Override
@@ -27,7 +30,7 @@ public class CurrentUserTool implements AiTool {
 
     @Override
     public String description() {
-        return "查询当前登录用户的用户名、显示名和权限编码。问我是谁、我有什么权限时必须调用。";
+        return "查询当前登录用户的用户名、显示名、绑定角色名称/编码和权限编码。问我是谁、当前角色、我有什么权限时必须调用。";
     }
 
     @Override
@@ -56,6 +59,8 @@ public class CurrentUserTool implements AiTool {
         }
         return "用户名=" + user.getUsername()
                 + "，显示名=" + user.getNickname()
+                + "，角色=" + roleMapper.selectByUserId(user.getId()).stream()
+                    .map(role -> role.getName() + "(" + role.getCode() + ")").collect(Collectors.joining("、"))
                 + "，状态=" + user.getStatus()
                 + "，权限=[" + permissions + "]";
     }

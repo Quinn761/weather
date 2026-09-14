@@ -46,9 +46,9 @@ let streamAbort = null
 
 const hints = [
   '无锡明天会不会下雨？',
-  '帮我写一封简短的感谢信',
-  '用简单的例子解释递归',
-  '帮我安排一周的学习计划',
+  '当前系统有哪些功能？',
+  '这个项目的 AI 圈地是怎么实现的？',
+  '我能访问哪些页面？',
 ]
 
 const currentTitle = computed(() => {
@@ -362,8 +362,8 @@ function formatWhen(value) {
             <span class="welcome-mark">✧</span>
             <span class="welcome-kicker">你的 AI 助手</span>
             <strong>今天，有什么想了解的？</strong>
-            <p>聊聊日常、写作、编程或学习，也可以查询天气和系统数据。</p>
-            <div class="prompt-grid"><button v-for="(hint, hintIndex) in hints" :key="hint" :disabled="busy" @click="chooseHint(hint)"><span>{{ ['天气预报', '写作帮助', '编程解答', '学习计划'][hintIndex] }}</span><b>{{ hint }}</b><small>点击编辑问题 <span>↗</span></small></button></div>
+            <p>了解本项目的功能与实现，查询有权限访问的系统数据，也可以自由聊天。</p>
+            <div class="prompt-grid"><button v-for="(hint, hintIndex) in hints" :key="hint" :disabled="busy" @click="chooseHint(hint)"><span>{{ ['天气预报', '系统功能', '项目实现', '我的权限'][hintIndex] }}</span><b>{{ hint }}</b><small>点击编辑问题 <span>↗</span></small></button></div>
           </div>
           <article
             v-for="(item, index) in messages"

@@ -2,6 +2,7 @@ package com.weatherhub.ai.agent;
 
 import com.weatherhub.ai.dto.TraceStep;
 import com.weatherhub.ai.llm.LlmMessage;
+import com.weatherhub.ai.rag.ProjectKnowledge;
 import com.weatherhub.config.AiProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -179,6 +180,7 @@ public class PythonAgentClient {
         body.put("user_id", userId);
         body.put("session_id", sessionId);
         body.put("message", message);
+        body.put("project_context", ProjectKnowledge.context());
         body.put("history", history.stream().map(item -> Map.of("role", item.role(), "content", item.content())).toList());
         body.put("evidences", evidences);
         body.put("used_tools", usedTools);
