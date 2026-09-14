@@ -35,6 +35,12 @@ spec:
         - name: backend
           image: weather_backend:latest
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 768Mi
           env:
             - name: JAVA_TOOL_OPTIONS
               value: -XX:MaxRAMPercentage=50 -XX:+ExitOnOutOfMemoryError

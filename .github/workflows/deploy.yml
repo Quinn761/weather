@@ -110,6 +110,11 @@ jobs:
             export PATH="/usr/local/bin:/usr/bin:$PATH"
             export DEPLOY_DIR
             umask 077
+            # Bound client startup/discovery as well as individual API requests.
+            KUBECTL_BIN="$(command -v kubectl)"
+            kubectl() {
+              timeout --kill-after=5s 150s "$KUBECTL_BIN" --request-timeout=20s "$@"
+            }
 
             echo "== host =="
             df -h / || true
@@ -120,7 +125,14 @@ jobs:
               echo "Invalid deployment artifact directory"; exit 1;
             }
             exec 9>/var/lock/weather-deploy.lock
+            echo "== acquire deployment lock =="
             flock -w 120 9 || { echo "Another deployment is still running"; exit 1; }
+            echo "== Kubernetes API readiness =="
+            kubectl get --raw=/readyz || {
+              echo "Kubernetes API is unavailable; aborting before changing workloads"
+              free -h || true
+              exit 1
+            }
             PYTHON_REPLICAS=""
             restore_python() {
               local status=$?
@@ -138,9 +150,10 @@ jobs:
             trap 'exit 130' INT
 
             # Tiny node (~3.4Gi): pause SAM during import/rollout so JVM can start.
-            if kubectl -n weather get deploy python-agent >/dev/null 2>&1; then
+            echo "== read python-agent replicas =="
+            PYTHON_REPLICAS="$(kubectl -n weather get deploy python-agent --ignore-not-found -o jsonpath='{.spec.replicas}')"
+            if [ -n "$PYTHON_REPLICAS" ]; then
               echo "== scale python-agent to 0 for free RAM =="
-              PYTHON_REPLICAS="$(kubectl -n weather get deploy python-agent -o jsonpath='{.spec.replicas}')"
               kubectl -n weather scale deploy/python-agent --replicas=0
               kubectl -n weather wait --for=delete pod -l app=python-agent --timeout=90s
               free -h || true
@@ -258,7 +271,7 @@ jobs:
             echo "== rollout backend/frontend =="
             wait_rollout backend 240 || dump
             wait_rollout frontend 120 || dump
-            curl -fsS "http://127.0.0.1:30080/api/health" || dump
+            curl --connect-timeout 5 --max-time 20 -fsS "http://127.0.0.1:30080/api/health" || dump
             echo
             kubectl -n weather get pods
             rm -f "$k8s"
