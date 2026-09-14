@@ -36,7 +36,7 @@ jobs:
                     comm = (p/'comm').read_text().strip()
                     importer = p.name == '844544' and comm == 'ctr' and any(args[i:i+2] == [b'images', b'import'] for i in range(len(args)-1))
                     decompressor = p.name == '844543' and comm == 'gzip' and any(a.startswith(b'/tmp/weather-images') for a in args)
-                    old_deploy = comm == 'bash' and b'DEPLOY_DIR=/tmp/weather-deploy/34820072164-1' in (p/'environ').read_bytes().split(b'\0')
+                    old_deploy = p.name == '846500' and comm == 'bash' and (b'/tmp/weather-deploy/34820072164-1' in b' '.join(args) or b'weather-deploy.lock' in b' '.join(args))
                     if importer or decompressor or old_deploy:
                         if old_deploy:
                             for child in (p/'task'/p.name/'children').read_text().split():
@@ -48,6 +48,34 @@ jobs:
                         os.kill(int(p.name), signal.SIGTERM)
                 except (FileNotFoundError, ProcessLookupError, PermissionError):
                     pass
+            PY
+            # Read the local API without loading the large k3s multicall binary.
+            timeout --kill-after=5s 90s python3 - <<'PY'
+            import base64, json, os, re, ssl, tempfile, urllib.request
+            from pathlib import Path
+            cfg = Path('/etc/rancher/k3s/k3s.yaml').read_text()
+            with tempfile.TemporaryDirectory(prefix='weather-api-') as tmp:
+                files = []
+                for field in ['certificate-authority-data', 'client-certificate-data', 'client-key-data']:
+                    value = re.search(r'^\s*' + field + r':\s*(\S+)', cfg, re.M).group(1).strip(chr(34)+chr(39))
+                    path = Path(tmp)/field
+                    path.write_bytes(base64.b64decode(value))
+                    path.chmod(0o600)
+                    files.append(str(path))
+                ctx = ssl.create_default_context(cafile=files[0])
+                ctx.load_cert_chain(files[1], files[2])
+                for route in ['/readyz', '/apis/apps/v1/namespaces/weather/deployments', '/api/v1/namespaces/weather/pods']:
+                    print('== direct API', route, '==', flush=True)
+                    try:
+                        with urllib.request.urlopen('https://127.0.0.1:6443'+route, context=ctx, timeout=15) as response:
+                            data = response.read()
+                        if route == '/readyz':
+                            print(data.decode(), flush=True)
+                        else:
+                            for item in json.loads(data).get('items', []):
+                                print(json.dumps({'name': item['metadata']['name'], 'uid': item['metadata']['uid'], 'deleting': item['metadata'].get('deletionTimestamp'), 'replicas': item.get('spec',{}).get('replicas'), 'status': item.get('status', {})}), flush=True)
+                    except Exception as exc:
+                        print(type(exc).__name__, str(exc)[:200], flush=True)
             PY
             check() {
               echo "== $1 $(date -Is) =="
