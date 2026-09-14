@@ -15,7 +15,8 @@ RUN set -eu; \
       pip install --no-cache-dir \
         torch==2.5.1 torchvision==0.20.1 \
         --index-url https://download.pytorch.org/whl/cpu && \
-      SAM2_BUILD_CUDA=0 pip install --no-cache-dir -r requirements-sam2.txt; \
+      pip install --no-cache-dir 'setuptools>=61' wheel && \
+      SAM2_BUILD_CUDA=0 pip install --no-cache-dir --no-build-isolation -r requirements-sam2.txt; \
     fi; \
     if [ "$DOWNLOAD_SAM2_CHECKPOINT" = "true" ]; then \
       apt-get update && apt-get install -y --no-install-recommends curl && \

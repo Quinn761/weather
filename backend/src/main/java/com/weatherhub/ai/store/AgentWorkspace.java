@@ -2,6 +2,8 @@ package com.weatherhub.ai.store;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.weatherhub.ai.dto.AgentMessageVO;
+import com.weatherhub.ai.llm.LlmMessage;
+import java.util.Collections;
 import com.weatherhub.ai.dto.AgentSessionDetailVO;
 import com.weatherhub.ai.dto.AgentSessionVO;
 import com.weatherhub.ai.dto.AgentTaskVO;
@@ -90,6 +92,17 @@ public class AgentWorkspace {
                 messages,
                 memories(userId)
         );
+    }
+
+    public List<LlmMessage> recentHistory(Long userId, Long sessionId) {
+        requireSession(userId, sessionId);
+        List<AiMessage> recent = new ArrayList<>(messageMapper.selectList(new LambdaQueryWrapper<AiMessage>()
+                .eq(AiMessage::getSessionId, sessionId)
+                .in(AiMessage::getRole, List.of("user", "assistant"))
+                .orderByDesc(AiMessage::getId)
+                .last("LIMIT 20")));
+        Collections.reverse(recent);
+        return recent.stream().map(item -> new LlmMessage(item.getRole(), item.getContent(), null, null, null)).toList();
     }
 
     public void saveMessage(Long sessionId, String role, String content, String agent, String payload) {

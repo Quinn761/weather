@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import { Delete, Plus, Position } from '@element-plus/icons-vue'
+import { ArrowDown, Close, Delete, DocumentCopy, Plus, Position, Search } from '@element-plus/icons-vue'
+import AgentAnswer from '@/components/AgentAnswer.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createAgentSession,
@@ -28,24 +29,27 @@ const loading = ref(false)
 const deletingId = ref(null)
 const draft = ref('')
 const board = ref(null)
+const input = ref(null)
+const search = ref('')
+const sessionLoading = ref(false)
+const sessionError = ref(false)
+const followOutput = ref(true)
+const elapsed = ref(0)
+const showHistory = ref(false)
+const drafts = new Map()
+const filteredSessions = computed(() => sessions.value.filter((item) => (item.title || '').toLowerCase().includes(search.value.trim().toLowerCase())))
+const busy = computed(() => sending.value || loading.value || sessionLoading.value || deletingId.value !== null)
+const canSend = computed(() => draft.value.trim() && !busy.value && status.value?.enabled !== false)
+let sessionRevision = 0
+let disposed = false
 let streamAbort = null
 
 const hints = [
   '无锡明天会不会下雨？',
-  '上海空气质量怎么样？',
-  '无锡现在天气怎么样？',
-  '现在系统有多少用户？',
+  '帮我写一封简短的感谢信',
+  '用简单的例子解释递归',
+  '帮我安排一周的学习计划',
 ]
-
-const lastCrew = computed(() => {
-  const used = new Set()
-  for (const item of messages.value) {
-    for (const step of item.plan || []) {
-      used.add(step.agent)
-    }
-  }
-  return used
-})
 
 const currentTitle = computed(() => {
   return sessions.value.find((item) => item.id === sessionId.value)?.title || '新任务'
@@ -54,8 +58,10 @@ const currentTitle = computed(() => {
 onMounted(async () => {
   loading.value = true
   try {
-    status.value = await getAiStatus()
-    await refreshSessions()
+    await Promise.allSettled([
+      getAiStatus().then((value) => { status.value = value }),
+      refreshSessions(),
+    ])
     if (sessions.value.length) {
       await openSession(sessions.value[0].id)
     }
@@ -65,11 +71,16 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  disposed = true
+  sessionRevision += 1
   streamAbort?.abort()
 })
 
 async function refreshSessions() {
-  sessions.value = (await listAgentSessions()) || []
+  try {
+    sessions.value = (await listAgentSessions()) || []
+    sessionError.value = false
+  } catch { sessionError.value = true }
 }
 
 function resetBoard() {
@@ -79,9 +90,15 @@ function resetBoard() {
 }
 
 async function openSession(id) {
-  streamAbort?.abort()
-  sessionId.value = id
+  if (sending.value || deletingId.value !== null) return
+  const revision = ++sessionRevision
+  sessionLoading.value = true
+  try {
   const detail = await getAgentSession(id)
+  if (disposed || revision !== sessionRevision) return
+  drafts.set(sessionId.value, draft.value)
+  sessionId.value = id
+  draft.value = drafts.get(id) || ''
   messages.value = (detail.messages || []).map((item) => ({
     role: item.role,
     content: item.content,
@@ -94,18 +111,23 @@ async function openSession(id) {
   }))
   const last = [...messages.value].reverse().find((item) => item.role === 'assistant')
   mode.value = last?.mode || ''
-  scrollBottom()
+  showHistory.value = false
+  scrollBottom(true)
+  } catch { /* HTTP client displays the error; keep the current conversation. */ }
+  finally { if (revision === sessionRevision) sessionLoading.value = false }
 }
 
 async function newSession() {
-  const created = await createAgentSession()
-  sessionId.value = created.id
-  messages.value = []
-  mode.value = ''
-  await refreshSessions()
+  if (busy.value) return
+  drafts.set(sessionId.value, draft.value)
+  resetBoard()
+  draft.value = drafts.get(null) || ''
+  showHistory.value = false
+  nextTick(() => input.value?.focus())
 }
 
 async function removeSession(item) {
+  if (busy.value) return
   try {
     await ElMessageBox.confirm(`确认删除会话「${item.title}」？其中的消息会一并删掉。`, '删除会话', {
       type: 'warning',
@@ -120,12 +142,15 @@ async function removeSession(item) {
     await deleteAgentSession(item.id)
     const remaining = sessions.value.filter((row) => row.id !== item.id)
     sessions.value = remaining
+    drafts.delete(item.id)
     ElMessage.success('会话已删除')
     if (sessionId.value === item.id) {
       if (remaining.length) {
+        deletingId.value = null
         await openSession(remaining[0].id)
       } else {
         resetBoard()
+        draft.value = drafts.get(null) || ''
       }
     }
   } finally {
@@ -133,132 +158,101 @@ async function removeSession(item) {
   }
 }
 
-function scrollBottom() {
+function scrollBottom(force = false) {
+  if (force) followOutput.value = true
   nextTick(() => {
-    if (board.value) {
+    if (board.value && followOutput.value) {
       board.value.scrollTop = board.value.scrollHeight
     }
   })
 }
 
+function handleInputKey(event) {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229) return
+  event.preventDefault()
+  send()
+}
+
+function trackScroll() {
+  const el = board.value
+  if (el) followOutput.value = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+}
+
+function chooseHint(hint) {
+  if (busy.value) return
+  draft.value = hint
+  nextTick(() => input.value?.focus())
+}
+
+function stopReceiving() { streamAbort?.abort() }
+
+async function copyAnswer(content) {
+  try { await navigator.clipboard.writeText(content); ElMessage.success('回答已复制') }
+  catch { ElMessage.info('当前浏览器不支持复制，请选中回答文本复制') }
+}
+
 async function send(text) {
-  const content = (text ?? draft.value).trim()
-  if (!content || sending.value) {
-    return
-  }
-  draft.value = ''
-  messages.value.push({ role: 'user', content, plan: [] })
-  messages.value.push({
-    role: 'assistant',
-    content: '',
-    pending: true,
-    streaming: true,
-    agent: 'reviewer',
-    plan: [],
-    usedTools: [],
-    ragSources: [],
-    trace: [],
-    mode: '',
-  })
-  const bubble = messages.value[messages.value.length - 1]
-  sending.value = true
-  scrollBottom()
-  streamAbort?.abort()
+  const content = (typeof text === 'string' ? text : draft.value).trim()
+  if (!content || content.length > 4000 || busy.value || status.value?.enabled === false) return
   const abort = new AbortController()
   streamAbort = abort
+  sending.value = true
+  draft.value = ''
+  drafts.delete(sessionId.value)
+  elapsed.value = 0
+  const started = Date.now()
+  const timer = setInterval(() => { elapsed.value = Math.floor((Date.now() - started) / 1000) }, 1000)
+  let timedOut = false
+  const timeout = setTimeout(() => { timedOut = true; abort.abort() }, 180000)
+  messages.value.push({ role: 'user', content, plan: [] })
+  messages.value.push({ role: 'assistant', content: '', streaming: true, prompt: content,
+    plan: [], usedTools: [], ragSources: [], trace: [], mode: '' })
+  const bubble = messages.value[messages.value.length - 1]
+  scrollBottom(true)
   try {
-    const data = await runAgentStream(
-      { sessionId: sessionId.value, message: content },
-      {
-        signal: abort.signal,
-        onDelta: (chunk) => revealText(bubble, chunk, abort.signal),
-      },
-    )
-    applyRunResult(bubble, data)
-    sessionId.value = data.sessionId
-    mode.value = data.mode
-    if (!bubble.content && data.reply) {
-      await revealText(bubble, data.reply, abort.signal)
-    } else if (data.reply && bubble.content !== data.reply) {
-      bubble.content = data.reply
+    if (!sessionId.value) {
+      const created = await createAgentSession()
+      if (disposed) return
+      sessionId.value = created.id
+      sessions.value = [{ ...created, title: content.slice(0, 40) }, ...sessions.value.filter((item) => item.id !== created.id)]
     }
-    bubble.pending = false
-    bubble.streaming = false
+    abort.signal.throwIfAborted()
+    const data = await runAgentStream({ sessionId: sessionId.value, message: content }, {
+      signal: abort.signal,
+      onDelta(chunk) {
+        if (disposed || abort.signal.aborted) return
+        bubble.content += chunk
+        scrollBottom()
+      },
+    })
+    if (disposed || abort.signal.aborted) return
+    Object.assign(bubble, { content: data.reply || bubble.content, mode: data.mode,
+      plan: data.plan || [], usedTools: data.usedTools || [], ragSources: data.ragSources || [], trace: data.trace || [] })
+    sessionId.value = data.sessionId ?? sessionId.value
+    mode.value = data.mode
     await refreshSessions()
   } catch (error) {
-    if (error.name === 'AbortError') {
-      return
-    }
-    bubble.pending = false
-    bubble.streaming = false
-    if (!bubble.content) {
-      bubble.content = error.message || 'Agent 执行失败'
-    }
-    bubble.plan = bubble.plan || []
+    if (disposed) return
+    if (abort.signal.aborted && !timedOut) bubble.stopped = true
+    else bubble.error = timedOut ? '响应超时，已保留收到的内容。请稍后重试。' : error.message || '执行失败，请重试'
   } finally {
-    sending.value = false
-    if (streamAbort === abort) {
-      streamAbort = null
-    }
-    scrollBottom()
+    clearInterval(timer)
+    clearTimeout(timeout)
+    bubble.streaming = false
+    bubble.duration = Math.max(1, Math.round((Date.now() - started) / 1000))
+    if (streamAbort === abort) { sending.value = false; streamAbort = null }
+    if (!disposed) { scrollBottom(); nextTick(() => input.value?.focus()) }
   }
-}
-
-function applyRunResult(bubble, data) {
-  bubble.agent = 'reviewer'
-  bubble.plan = data.plan || []
-  bubble.usedTools = data.usedTools || []
-  bubble.ragSources = data.ragSources || []
-  bubble.trace = data.trace || []
-  bubble.mode = data.mode
-}
-
-async function revealText(bubble, text, signal) {
-  const chunk = text || ''
-  if (!chunk) {
-    return
-  }
-  if (bubble.pending) {
-    bubble.content = ''
-    bubble.pending = false
-  }
-  const chars = Array.from(chunk)
-  if (chars.length <= 24) {
-    bubble.content += chunk
-    scrollBottom()
-    return
-  }
-  const started = bubble.content
-  const duration = Math.min(2400, Math.max(280, chars.length * 16))
-  const start = performance.now()
-  await new Promise((resolve) => {
-    function tick() {
-      if (signal?.aborted) {
-        bubble.content = started + chunk
-        resolve()
-        return
-      }
-      const ratio = Math.min(1, (performance.now() - start) / duration)
-      bubble.content = started + chars.slice(0, Math.ceil(chars.length * ratio)).join('')
-      scrollBottom()
-      if (ratio >= 1) {
-        resolve()
-        return
-      }
-      requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
-  })
 }
 
 function modeLabel(value) {
   if (value === 'llm' || value === 'python-llm') {
-    return '大模型质检'
+    return '模型回答'
   }
   if (value === 'local' || value === 'python-local') {
-    return '本地交卷'
+    return '工具结果汇总'
   }
-  return '未执行'
+  return '准备就绪'
 }
 
 function modeChip(value) {
@@ -313,55 +307,24 @@ function formatWhen(value) {
 
 <template>
   <div class="page ai-page" v-loading="loading">
-    <section class="hero-panel ai-hero">
-      <div>
-        <p class="eyebrow">Planner · Knowledge · Operator · Reviewer</p>
-        <h2>Agent 工作台</h2>
-        <p class="hero-desc">四位角色按计划执行。有余额时质检官用大模型润色，否则用真实工具结果本地交卷。</p>
-      </div>
-      <div v-if="status" class="hero-meta">
-        <span>{{ status.configured ? status.model : '本地交卷' }}</span>
-        <span>{{ (status.tools || []).length }} 个工具</span>
-        <span>{{ status.ragDocuments }} 篇知识</span>
-      </div>
-    </section>
-
-    <ol class="pipeline">
-      <li v-for="(role, index) in CREW" :key="role.id" :class="{ hot: lastCrew.has(role.id) }">
-        <em>{{ index + 1 }}</em>
-        <div>
-          <strong>{{ role.label }}</strong>
-          <span>{{ role.hint }}</span>
-        </div>
-      </li>
-    </ol>
-
-    <el-alert
-      v-if="status && !status.configured"
-      type="warning"
-      show-icon
-      :closable="false"
-      title="大模型 Key 未配置，工作台走本地交卷"
-      description="规划、检索、工具调用仍然执行。给 DeepSeek 充值并设置 AI_API_KEY 后，质检官会改用大模型写最终回答。"
-    />
-
     <div class="studio">
-      <aside class="session-col">
+      <aside class="session-col" :class="{ 'mobile-open': showHistory }" aria-label="会话记录">
         <div class="session-head">
           <div>
-            <strong>任务会话</strong>
+            <strong>会话记录</strong>
             <p>{{ sessions.length }} 个</p>
           </div>
-          <el-button size="small" type="primary" plain :icon="Plus" @click="newSession">新建</el-button>
+          <el-button size="small" type="primary" plain :icon="Plus" :disabled="busy" @click="newSession">新建</el-button>
         </div>
+        <el-input v-model="search" class="session-search" :prefix-icon="Search" clearable placeholder="搜索会话" aria-label="搜索会话" />
         <div class="session-list">
           <div
-            v-for="item in sessions"
+            v-for="item in filteredSessions"
             :key="item.id"
             class="session-item"
             :class="{ active: sessionId === item.id }"
           >
-            <button class="session-main" type="button" @click="openSession(item.id)">
+            <button class="session-main" type="button" :disabled="sending || deletingId !== null" :title="sending ? '先停止接收或等待完成' : item.title" @click="openSession(item.id)">
               <strong>{{ item.title }}</strong>
               <span>{{ formatWhen(item.updatedAt) }}</span>
             </button>
@@ -371,27 +334,36 @@ function formatWhen(value) {
               type="danger"
               :icon="Delete"
               :loading="deletingId === item.id"
+              :disabled="busy"
+              :aria-label="`删除会话 ${item.title}`"
               @click.stop="removeSession(item)"
             />
           </div>
-          <p v-if="!sessions.length" class="muted session-empty">还没有会话。发送第一条目标后会自动创建。</p>
+          <p v-if="sessionError" class="session-empty">会话加载失败。<button class="text-action" @click="refreshSessions">重新加载</button></p>
+          <p v-else-if="!filteredSessions.length" class="muted session-empty">{{ search ? '没有匹配的会话，换个关键词试试。' : '发送第一个问题后，会话会保存在这里。' }}</p>
         </div>
       </aside>
 
       <section class="ai-chat">
         <header class="chat-head">
+          <button class="history-toggle text-action" @click="showHistory = !showHistory">{{ showHistory ? '收起记录' : '会话记录' }}</button>
           <div>
             <strong>{{ currentTitle }}</strong>
-            <p>{{ messages.length ? `${messages.length} 条消息` : '等待目标' }}</p>
+            <p>{{ messages.length ? `${messages.length} 条消息` : '开始对话' }}</p>
           </div>
           <span class="mode-chip" :class="modeChip(mode)">
             {{ modeLabel(mode) }}
           </span>
         </header>
-        <div ref="board" class="ai-board">
+        <div v-if="status && !status.configured" class="mode-notice">当前使用工具模式，可查询数据与知识，回答将直接汇总检索结果。</div>
+        <div v-if="status?.enabled === false" class="mode-notice">Agent 服务未启用，请联系管理员。</div>
+        <div ref="board" v-loading="sessionLoading" class="ai-board" :aria-busy="sending || sessionLoading" @scroll="trackScroll">
           <div v-if="!messages.length" class="ai-empty">
-            <strong>给 Agent 一个业务目标</strong>
-            <p>例如「现在系统有多少用户」。规划官会拆步骤，其余角色按计划执行。</p>
+            <span class="welcome-mark">✧</span>
+            <span class="welcome-kicker">你的 AI 助手</span>
+            <strong>今天，有什么想了解的？</strong>
+            <p>聊聊日常、写作、编程或学习，也可以查询天气和系统数据。</p>
+            <div class="prompt-grid"><button v-for="(hint, hintIndex) in hints" :key="hint" :disabled="busy" @click="chooseHint(hint)"><span>{{ ['天气预报', '写作帮助', '编程解答', '学习计划'][hintIndex] }}</span><b>{{ hint }}</b><small>点击编辑问题 <span>↗</span></small></button></div>
           </div>
           <article
             v-for="(item, index) in messages"
@@ -399,474 +371,142 @@ function formatWhen(value) {
             class="bubble"
             :class="[item.role, { streaming: item.streaming }]"
           >
-            <span v-if="item.role === 'assistant'" class="bubble-role">{{ crewLabel(item.agent || 'reviewer') }}</span>
-            <p>{{ item.pending && item.streaming ? '正在规划并收集证据…' : item.content }}</p>
-            <div v-if="item.role === 'assistant' && !item.streaming" class="bubble-meta">
-              <span v-if="item.mode">{{ item.mode === 'local' || item.mode === 'python-local' ? '本地质检官' : '大模型质检官' }}</span>
-              <span v-if="item.ragSources?.length">RAG {{ item.ragSources.join('、') }}</span>
-              <span v-if="item.usedTools?.length">Tool {{ item.usedTools.join('、') }}</span>
-            </div>
+            <span v-if="item.role === 'assistant'" class="bubble-role">AI 助手</span>
+            <p v-if="item.role === 'user'">{{ item.content }}</p>
+            <AgentAnswer v-else-if="item.content" :content="item.content" />
+            <div v-if="item.streaming" class="run-progress" role="status"><span class="pulse-dot" />{{ item.content ? '正在生成回答' : elapsed > 20 ? '仍在处理，请稍候' : '正在思考你的问题' }} <span>{{ elapsed }}s</span></div>
+            <div v-if="item.error" class="message-error" role="alert"><strong>这次未能完成</strong><p>{{ item.error }}</p><button class="text-action" :disabled="busy" @click="send(item.prompt)">重试这个问题</button><button class="text-action" :disabled="busy" @click="chooseHint(item.prompt)">编辑后重发</button></div>
+            <p v-if="item.stopped" class="stopped-note">已停止接收。服务器可能仍在处理，稍后可重新打开会话查看保存结果。</p>
+            <div v-if="item.role === 'assistant' && !item.streaming && item.content" class="answer-actions"><button class="text-action" @click="copyAnswer(item.content)"><el-icon><DocumentCopy /></el-icon>复制回答</button><span>{{ modeLabel(item.mode) }}</span><span v-if="item.duration">用时 {{ item.duration }} 秒</span></div>
+            <details v-if="item.role === 'assistant' && !item.streaming && (item.plan?.length || item.trace?.length || item.usedTools?.length || item.ragSources?.length)" class="execution-details">
+              <summary>查看执行记录与依据 <span>{{ item.usedTools?.length || 0 }} 个工具 · {{ item.ragSources?.length || 0 }} 条来源</span></summary>
+              <div v-if="item.usedTools?.length" class="evidence-tags"><span v-for="tool in item.usedTools" :key="tool">{{ tool }}</span></div>
+              <ul v-if="item.ragSources?.length"><li v-for="(source, sourceIndex) in item.ragSources" :key="sourceIndex">{{ source }}</li></ul>
+              <ol v-if="item.plan?.length"><li v-for="(step, stepIndex) in item.plan" :key="stepIndex"><strong>{{ crewLabel(step.agent) }} · {{ step.title }}</strong><p>{{ step.detail }}</p></li></ol>
+              <details v-if="item.trace?.length" class="trace-details"><summary>详细记录（{{ item.trace.length }}）</summary><p v-for="(step, stepIndex) in item.trace" :key="stepIndex"><b>{{ step.stage }}</b> {{ step.detail }}</p></details>
+            </details>
           </article>
         </div>
-        <div class="ai-hints">
-          <button v-for="hint in hints" :key="hint" type="button" class="hint" @click="send(hint)">{{ hint }}</button>
-        </div>
+        <button v-if="!followOutput && messages.length" class="jump-bottom" @click="scrollBottom(true)"><el-icon><ArrowDown /></el-icon>回到最新回答</button>
         <form class="ai-input" @submit.prevent="send()">
           <el-input
+            ref="input"
             v-model="draft"
             type="textarea"
-            :rows="2"
+            :autosize="{ minRows: 2, maxRows: 5 }"
+            resize="none"
+            :disabled="sessionLoading || status?.enabled === false"
+            aria-label="输入给 Agent 的问题"
             maxlength="4000"
-            show-word-limit
-            placeholder="给 Agent 一个目标，例如：GIS 里有哪些标注？"
-            @keydown.enter.exact.prevent="send()"
+            placeholder="输入任何问题，或接着聊聊……"
+            @keydown="handleInputKey"
           />
-          <el-button type="primary" :loading="sending" :icon="Position" native-type="submit">执行</el-button>
+          <div class="composer-toolbar"><span>Enter 发送 · Shift + Enter 换行</span><small>{{ draft.length }}/4000</small><el-button v-if="sending" :icon="Close" @click="stopReceiving">停止接收</el-button><el-button v-else type="primary" :disabled="!canSend" :icon="Position" native-type="submit">发送</el-button></div>
         </form>
+        <p class="composer-note">回答可能存在错误，重要信息请核实。</p>
       </section>
     </div>
   </div>
 </template>
 
 <style scoped>
-.ai-page {
-  height: calc(100dvh - 150px);
-  min-height: 0;
-  overflow: hidden;
+.ai-page { height: calc(100dvh - 146px); min-height: 520px; overflow: hidden; gap: 20px; color: #183246; }
+.studio { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px minmax(0,1fr); grid-template-rows: minmax(0,1fr); border: 1px solid #dce5eb; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 8px 28px #163b4d08; position: relative; }
+.session-col { display: flex; flex-direction: column; min-height: 0; background: #f7f9fb; border-right: 1px solid #e4ebef; }
+.session-head { display: flex; justify-content: space-between; align-items: center; padding: 20px 16px 14px; font-size: 13px; }
+.session-head p { color: #98a6b0; font-size: 11px; margin: 5px 0 0; }
+.session-head :deep(.el-button) { background: #e8f4f4; border-color: #cbe4e6; color: #087780; border-radius: 7px; }
+.session-search { width: auto; margin: 0 12px 12px; }
+.session-search :deep(.el-input__wrapper) { box-shadow: 0 0 0 1px #e5ebef inset; border-radius: 8px; }
+.session-list { flex: 1; min-height: 0; overflow: auto; padding: 0 10px 12px; }
+.session-item { display: grid; grid-template-columns: minmax(0,1fr) 30px; align-items: center; border-radius: 9px; margin-bottom: 5px; border: 1px solid transparent; }
+.session-item:hover { background: #edf2f5; }
+.session-item.active { background: #fff; border-color: #dbe7eb; box-shadow: 0 2px 5px #153b5005; }
+.session-main { border: 0; background: transparent; text-align: left; min-width: 0; padding: 13px 10px; cursor: pointer; }
+.session-main strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: #365063; }
+.session-main span { display: block; font-size: 10px; margin-top: 7px; color: #93a3ae; }
+.active .session-main strong { color: #087e88; }
+.session-del { opacity: 0; padding: 4px; width: 26px; }
+.session-item:hover .session-del, .session-item:focus-within .session-del { opacity: 1; }
+.session-empty { color: #8193a0; font-size: 12px; padding: 18px 8px; line-height: 1.8; }
+.ai-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; position: relative; }
+.chat-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 26px; border-bottom: 1px solid #edf1f4; gap: 12px; flex-shrink: 0; }
+.chat-head > div { min-width: 0; flex: 1; }
+.chat-head strong { font-size: 14px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-head p { color: #96a4ae; font-size: 11px; margin: 5px 0 0; }
+.mode-chip { border: 1px solid #e0eaee; background: #f8fbfc; color: #79909d; padding: 5px 10px; font-size: 11px; border-radius: 20px; white-space: nowrap; }
+.mode-chip.llm { color: #087c85; background: #edf7f7; border-color: #d7eaea; }
+.mode-chip.local { color: #997b41; background: #fffbf2; }
+.mode-notice { background: #fffbf2; color: #997b41; font-size: 12px; line-height: 1.6; padding: 8px 26px; border-bottom: 1px solid #f6efdf; }
+.ai-board { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 26px; padding: 26px 32px; background: #fff; }
+.ai-empty { margin: auto; width: 100%; max-width: 620px; padding: 16px 0; text-align: center; }
+.welcome-mark { display: grid; place-items: center; width: 48px; height: 48px; margin: 0 auto 17px; border-radius: 15px; color: #087c87; background: #edf7f7; border: 1px solid #d6ecec; font-size: 30px; }
+.welcome-kicker { display: block; font-size: 11px; color: #77919d; letter-spacing: 1.4px; margin-bottom: 10px; }
+.ai-empty > strong { display: block; font-size: clamp(22px,2.2vw,30px); font-weight: 600; letter-spacing: -.7px; }
+.ai-empty > p { color: #8b9ca7; font-size: 13px; margin: 12px 0 25px; line-height: 1.7; }
+.prompt-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; max-width: 560px; margin: auto; }
+.prompt-grid button { border: 1px solid #e2eaf0; border-radius: 11px; padding: 17px 18px; background: #fff; color: inherit; cursor: pointer; text-align: left; transition: background .15s, border-color .15s; }
+.prompt-grid button:hover { border-color: #9acace; background: #f6fbfb; }
+.prompt-grid button > span { color: #16838a; font-size: 10px; }
+.prompt-grid b { display: block; font-weight: 500; font-size: 13px; margin: 9px 0; }
+.prompt-grid small { display: flex; justify-content: space-between; color: #98a6b0; font-size: 11px; }
+.bubble { min-width: 0; max-width: 100%; line-height: 1.8; overflow-wrap: anywhere; flex-shrink: 0; }
+.bubble.user { margin-left: auto; max-width: 85%; background: #edf5f7; border: 1px solid #e3edf0; border-radius: 12px 3px 12px 12px; padding: 12px 17px; font-size: 14px; }
+.bubble p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble.assistant { padding: 0 0 10px; width: 100%; }
+.bubble-role { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: #547788; font-size: 12px; font-weight: 600; }
+.bubble-role::before { content: '✧'; display: grid; place-items: center; background: #e9f5f4; color: #14818a; height: 27px; width: 27px; border-radius: 8px; font-size: 19px; }
+.run-progress { display: flex; align-items: center; gap: 9px; color: #64868e; font-size: 12px; padding: 10px 0; }
+.run-progress > span:last-child { color: #91a5ad; font-size: 11px; }
+.pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: #169ba0; animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+.message-error { background: #fff7f5; border: 1px solid #f4ded9; border-radius: 9px; padding: 12px; margin: 10px 0; color: #af5148; font-size: 12px; }
+.message-error p { line-height: 1.6; margin: 7px 0; }
+.message-error .text-action { margin-right: 15px; color: #a4483f; }
+.bubble .stopped-note { font-size: 12px; color: #8b7b5e; line-height: 1.7; }
+.answer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 12px; font-size: 11px; color: #9aaaae; }
+.text-action { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 3px 0; color: #6e8794; font-size: 12px; cursor: pointer; }
+.text-action:hover { color: #087e88; }
+.execution-details { border: 1px solid #e7eef1; border-radius: 8px; margin-top: 12px; color: #6f8591; padding: 10px 12px; font-size: 12px; }
+.execution-details summary { cursor: pointer; line-height: 1.7; }
+.execution-details summary > span { color: #9aabb4; font-size: 10px; margin-left: 10px; }
+.execution-details ol, .execution-details ul { padding-left: 18px; margin: 14px 0; }
+.execution-details li { margin: 10px 0; }
+.execution-details li strong { color: #536d7b; font-weight: 500; }
+.execution-details p { margin: 5px 0; line-height: 1.7; }
+.evidence-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.evidence-tags span { background: #f0f6f8; border-radius: 4px; padding: 3px 7px; overflow-wrap: anywhere; }
+.trace-details { border-top: 1px solid #e7eef1; padding-top: 8px; }
+.trace-details b { color: #506f80; font-weight: 500; }
+.jump-bottom { align-self: center; margin-top: -35px; z-index: 2; position: relative; display: flex; align-items: center; gap: 6px; border-radius: 20px; border: 1px solid #d6e4e9; background: #fff; color: #4d7b89; box-shadow: 0 3px 12px #26465415; padding: 7px 14px; cursor: pointer; font-size: 12px; }
+.ai-input { flex-shrink: 0; display: block; margin: 10px 26px 0; border: 1px solid #d9e4e9; border-radius: 12px; padding: 5px; box-shadow: 0 3px 12px #163b4d04; }
+.ai-input:focus-within { border-color: #63aeb6; box-shadow: 0 0 0 3px #128e9610; }
+.ai-input :deep(.el-textarea__inner) { box-shadow: none; padding: 11px 12px 6px; font-size: 14px; line-height: 1.7; color: #28485b; background: transparent; }
+.ai-input :deep(.el-textarea__inner::placeholder) { color: #a0afb8; }
+.composer-toolbar { display: flex; align-items: center; gap: 12px; padding: 6px 7px; }
+.composer-toolbar > span { font-size: 10px; color: #99a9b4; flex: 1; }
+.composer-toolbar > small { font-size: 10px; color: #9babb6; }
+.composer-toolbar :deep(.el-button--primary) { --el-button-bg-color: #087f8b; --el-button-border-color: #087f8b; --el-button-hover-bg-color: #0b929b; --el-button-hover-border-color: #0b929b; --el-button-disabled-bg-color: #c0d9dd; --el-button-disabled-border-color: #c0d9dd; border-radius: 8px; }
+.composer-note { margin: 9px 10px 12px; color: #a2afb8; text-align: center; font-size: 10px; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+button:focus-visible, summary:focus-visible { outline: 2px solid #188b95; outline-offset: 3px; }
+.history-toggle { display: none; }
+.session-list, .ai-board { scrollbar-width: thin; scrollbar-color: #d3dfe5 transparent; }
+@media (min-width: 1500px) { .ai-board { padding-left: max(32px,calc((100% - 900px)/2)); padding-right: max(32px,calc((100% - 900px)/2)); } }
+@media (max-width: 1100px) { .studio { grid-template-columns: 205px minmax(0,1fr); } .ai-board { padding: 22px; } }
+@media (max-width: 760px) {
+  .ai-page { height: calc(100dvh - 122px); min-height: 520px; gap: 12px; }
+  .studio { grid-template-columns: minmax(0,1fr); }
+  .session-col { display: none; }
+  .session-col.mobile-open { display: flex; position: absolute; inset: 60px auto 0 0; width: min(300px,90%); z-index: 10; box-shadow: 10px 0 40px #183b4c25; }
+  .history-toggle { display: inline-flex; flex-shrink: 0; } .session-del { opacity: 1; }
+  .chat-head { padding: 13px; } .mode-chip { font-size: 10px; }
+  .mode-notice { padding: 7px 14px; }
+  .ai-board { padding: 18px 14px; } .ai-input { margin: 8px 10px 0; }
+  .composer-toolbar > span { display: none; } .composer-toolbar > small { margin-right: auto; }
+  .ai-empty > strong { font-size: 22px; } .ai-empty > p { font-size: 12px; }
+  .prompt-grid { gap: 8px; } .prompt-grid button { padding: 12px; } .prompt-grid b { font-size: 12px; }
+  .execution-details summary > span { display: block; margin: 4px 0 0; }
 }
-
-.ai-hero,
-.pipeline,
-.ai-page > .el-alert {
-  flex-shrink: 0;
-}
-
-.ai-hero {
-  padding: 22px 24px;
-}
-
-.ai-hero .hero-desc {
-  max-width: 560px;
-}
-
-.hero-meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-  max-width: 280px;
-}
-
-.hero-meta span {
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.pipeline {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-}
-
-.pipeline li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #fff;
-  border-radius: 14px;
-  padding: 12px 14px;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
-}
-
-.pipeline em {
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  font-style: normal;
-  font-size: 12px;
-  font-weight: 700;
-  background: #f1f5f9;
-  color: #64748b;
-  flex-shrink: 0;
-}
-
-.pipeline strong {
-  display: block;
-  color: #0f172a;
-  font-size: 13px;
-}
-
-.pipeline span {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-}
-
-.pipeline li.hot {
-  border-color: #7dd3fc;
-  background: #ecfeff;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.08);
-}
-
-.pipeline li.hot em {
-  background: #0ea5e9;
-  color: #fff;
-}
-
-.studio {
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  gap: 14px;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  align-items: stretch;
-}
-
-.session-col,
-.ai-chat {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
-}
-
-.session-col {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.session-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 16px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  flex-shrink: 0;
-}
-
-.session-head p {
-  margin: 4px 0 0;
-  color: #94a3b8;
-  font-size: 12px;
-}
-
-.session-list {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 8px;
-}
-
-.session-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px;
-  align-items: center;
-  border-radius: 12px;
-  margin-bottom: 4px;
-}
-
-.session-item:hover,
-.session-item.active {
-  background: #ecfeff;
-}
-
-.session-main {
-  min-width: 0;
-  text-align: left;
-  border: 0;
-  background: transparent;
-  padding: 10px 8px 10px 10px;
-  cursor: pointer;
-}
-
-.session-main strong {
-  display: block;
-  color: #0f172a;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session-main span {
-  display: block;
-  margin-top: 4px;
-  color: #94a3b8;
-  font-size: 12px;
-}
-
-.session-item.active .session-main strong {
-  color: #0e7490;
-}
-
-.session-del {
-  opacity: 0;
-}
-
-.session-item:hover .session-del,
-.session-item.active .session-del {
-  opacity: 1;
-}
-
-.session-empty {
-  padding: 18px 10px;
-}
-
-.ai-chat {
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.chat-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
-  border-bottom: 1px solid #f1f5f9;
-  flex-shrink: 0;
-}
-
-.chat-head p {
-  margin: 4px 0 0;
-  color: #94a3b8;
-  font-size: 12px;
-}
-
-.mode-chip {
-  border-radius: 999px;
-  padding: 5px 10px;
-  font-size: 12px;
-  background: #f8fafc;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
-  white-space: nowrap;
-}
-
-.mode-chip.llm {
-  background: #ecfeff;
-  color: #0e7490;
-  border-color: #a5f3fc;
-}
-
-.mode-chip.local {
-  background: #fff7ed;
-  color: #c2410c;
-  border-color: #fed7aa;
-}
-
-.ai-board {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px 18px;
-  background:
-    linear-gradient(#f8fafc, #f8fafc),
-    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 42%);
-}
-
-.ai-empty {
-  margin: auto;
-  text-align: center;
-  max-width: 360px;
-  color: #64748b;
-  line-height: 1.7;
-}
-
-.ai-empty strong {
-  display: block;
-  margin-bottom: 6px;
-  color: #0f172a;
-  font-size: 16px;
-}
-
-.muted {
-  color: #64748b;
-  line-height: 1.7;
-  font-size: 13px;
-}
-
-.bubble {
-  max-width: 86%;
-  padding: 12px 14px;
-  border-radius: 16px;
-  line-height: 1.7;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.bubble p {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.bubble.user {
-  margin-left: auto;
-  background: #0ea5e9;
-  color: #fff;
-  border-bottom-right-radius: 6px;
-}
-
-.bubble.assistant {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-bottom-left-radius: 6px;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
-}
-
-.bubble.streaming p::after {
-  content: '▍';
-  margin-left: 2px;
-  color: #0ea5e9;
-  animation: caret 1s step-end infinite;
-}
-
-@keyframes caret {
-  50% {
-    opacity: 0;
-  }
-}
-
-.bubble-role {
-  display: inline-block;
-  margin-bottom: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #ecfeff;
-  color: #0e7490;
-  font-size: 11px;
-}
-
-.bubble-meta {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.bubble-meta span {
-  background: #f8fafc;
-  border-radius: 999px;
-  padding: 2px 8px;
-}
-
-.ai-hints {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 18px 0;
-  flex-shrink: 0;
-}
-
-.hint {
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  color: #334155;
-  border-radius: 999px;
-  padding: 6px 10px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.hint:hover {
-  border-color: #7dd3fc;
-  background: #ecfeff;
-  color: #0e7490;
-}
-
-.ai-input {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: end;
-  padding: 12px 18px 16px;
-  flex-shrink: 0;
-}
-
-.session-list,
-.ai-board {
-  scrollbar-width: thin;
-  scrollbar-color: #94a3b8 transparent;
-}
-
-.session-list::-webkit-scrollbar,
-.ai-board::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.session-list::-webkit-scrollbar-track,
-.ai-board::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 8px 0;
-}
-
-.session-list::-webkit-scrollbar-thumb,
-.ai-board::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 999px;
-}
-
-.session-list::-webkit-scrollbar-thumb:hover,
-.ai-board::-webkit-scrollbar-thumb:hover {
-  background: #7dd3fc;
-}
-
-@media (max-width: 1180px) {
-  .ai-page {
-    height: auto;
-    max-height: none;
-    overflow: visible;
-  }
-
-  .pipeline,
-  .studio,
-  .hero-meta {
-    grid-template-columns: 1fr;
-    max-width: none;
-    justify-content: flex-start;
-  }
-
-  .studio {
-    height: auto;
-    overflow: visible;
-    grid-template-rows: none;
-  }
-
-  .session-col {
-    max-height: 280px;
-  }
-
-  .ai-chat {
-    height: 520px;
-  }
-}
+@media (prefers-reduced-motion: reduce) { .pulse-dot { animation: none; } }
 </style>

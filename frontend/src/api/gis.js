@@ -90,6 +90,9 @@ function describeRoboflowError(status, text) {
     return json.message || json.error || `HTTP ${status}`
   } catch {
     if (/<!doctype html|<html/i.test(text || '')) {
+      if (status === 403 && /cloudflare|you have been blocked/i.test(text)) {
+        return 'Roboflow 的 Cloudflare 安全策略拦截了服务器请求（HTTP 403）。请联系 Roboflow 支持，核查服务器出口 IP 和拦截记录。'
+      }
       return `Roboflow 返回了网页而不是识别结果（HTTP ${status}）`
     }
     return `HTTP ${status}`

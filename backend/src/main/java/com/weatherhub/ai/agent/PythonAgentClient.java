@@ -1,6 +1,7 @@
 package com.weatherhub.ai.agent;
 
 import com.weatherhub.ai.dto.TraceStep;
+import com.weatherhub.ai.llm.LlmMessage;
 import com.weatherhub.config.AiProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -45,6 +46,7 @@ public class PythonAgentClient {
             Long userId,
             Long sessionId,
             String message,
+            List<LlmMessage> history,
             List<String> evidences,
             List<String> usedTools,
             List<String> ragSources,
@@ -55,6 +57,8 @@ public class PythonAgentClient {
         }
         try {
             HttpClient httpClient = HttpClient.newBuilder()
+                    // Uvicorn does not support cleartext HTTP/2 upgrades; the body can be lost.
+                    .version(HttpClient.Version.HTTP_1_1)
                     .connectTimeout(Duration.ofSeconds(5))
                     .build();
             JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
@@ -65,7 +69,7 @@ public class PythonAgentClient {
                     .build();
             PythonReviewResponse response = client.post()
                     .uri("/agent/review")
-                    .body(reviewBody(userId, sessionId, message, evidences, usedTools, ragSources, trace))
+                    .body(reviewBody(userId, sessionId, message, history, evidences, usedTools, ragSources, trace))
                     .retrieve()
                     .body(PythonReviewResponse.class);
             if (response == null || !StringUtils.hasText(response.reply())) {
@@ -82,6 +86,7 @@ public class PythonAgentClient {
             Long userId,
             Long sessionId,
             String message,
+            List<LlmMessage> history,
             List<String> evidences,
             List<String> usedTools,
             List<String> ragSources,
@@ -93,10 +98,11 @@ public class PythonAgentClient {
         }
         try {
             HttpClient httpClient = HttpClient.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
                     .connectTimeout(Duration.ofSeconds(5))
                     .build();
             String payload = JSON.writeValueAsString(
-                    reviewBody(userId, sessionId, message, evidences, usedTools, ragSources, trace)
+                    reviewBody(userId, sessionId, message, history, evidences, usedTools, ragSources, trace)
             );
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(properties.normalizedPythonAgentUrl() + "/agent/review/stream"))
@@ -163,6 +169,7 @@ public class PythonAgentClient {
             Long userId,
             Long sessionId,
             String message,
+            List<LlmMessage> history,
             List<String> evidences,
             List<String> usedTools,
             List<String> ragSources,
@@ -172,6 +179,7 @@ public class PythonAgentClient {
         body.put("user_id", userId);
         body.put("session_id", sessionId);
         body.put("message", message);
+        body.put("history", history.stream().map(item -> Map.of("role", item.role(), "content", item.content())).toList());
         body.put("evidences", evidences);
         body.put("used_tools", usedTools);
         body.put("rag_sources", ragSources);

@@ -96,11 +96,12 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
+          SAM2_SERVICE_URL: ${{ vars.SAM2_SERVICE_URL }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: IMAGE_TAG,AI_API_KEY,ROBOFLOW_API_KEY
+          envs: IMAGE_TAG,AI_API_KEY,ROBOFLOW_API_KEY,SAM2_SERVICE_URL
           command_timeout: 20m
           script: |
             set -euo pipefail
@@ -152,8 +153,13 @@ jobs:
               echo "未配置 AI_API_KEY / ROBOFLOW_API_KEY"
             fi
 
-            kubectl -n weather delete deploy python-agent --ignore-not-found=true
-            kubectl -n weather delete svc python-agent --ignore-not-found=true
+            # SAM is deployed independently because its model image is large.
+            # A frontend/backend release must preserve an existing inference service.
+            kubectl -n weather set env deploy/backend \
+              "SAM2_SERVICE_URL=${SAM2_SERVICE_URL:-http://python-agent:8000}"
+            if [ -z "${SAM2_SERVICE_URL:-}" ] && ! kubectl -n weather get service python-agent >/dev/null 2>&1; then
+              echo "SAM 2.1 尚未部署：需要独立部署 python-agent，或设置仓库变量 SAM2_SERVICE_URL。"
+            fi
 
             kubectl -n weather set image deploy/backend "backend=weather_backend:${IMAGE_TAG}"
             kubectl -n weather set image deploy/frontend "frontend=weather_frontend:${IMAGE_TAG}"

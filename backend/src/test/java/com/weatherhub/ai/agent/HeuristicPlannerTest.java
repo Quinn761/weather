@@ -9,6 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class HeuristicPlannerTest {
 
     @Test
+    void generalConversationDoesNotRequireSystemTools() {
+        for (String question : List.of("你好", "帮我写一封感谢信", "明天如何学习编程", "你会不会写诗", "太阳系有多少行星", "解释递归")) {
+            assertTrue(HeuristicPlanner.plan(question).stream().allMatch(step -> step.tool() == null), question);
+        }
+    }
+
+    @Test
     void plansGisAndReview() {
         List<PlanStep> steps = HeuristicPlanner.plan("GIS 里有哪些标注？");
         assertTrue(steps.stream().anyMatch(step -> "planner".equals(step.agent())));
