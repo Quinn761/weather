@@ -1,0 +1,66 @@
+name: Deploy recovery
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-recovery.yml]
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Recover abandoned deployment processes
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 8m
+          script: |
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            export PATH="/usr/local/bin:/usr/bin:$PATH"
+            # Match argv arrays and orphan parent IDs, never the full SSH script.
+            timeout --kill-after=5s 90s python3 - <<'PY'
+            import os, signal
+            from pathlib import Path
+            for p in Path('/proc').iterdir():
+                if not p.name.isdigit():
+                    continue
+                try:
+                    status = dict(line.split(':', 1) for line in (p/'status').read_text().splitlines())
+                    if status['PPid'].strip() != '1':
+                        continue
+                    args = (p/'cmdline').read_bytes().split(b'\0')
+                    comm = (p/'comm').read_text().strip()
+                    importer = p.name == '844544' and comm == 'ctr' and any(args[i:i+2] == [b'images', b'import'] for i in range(len(args)-1))
+                    decompressor = p.name == '844543' and comm == 'gzip' and any(a.startswith(b'/tmp/weather-images') for a in args)
+                    old_deploy = comm == 'bash' and b'DEPLOY_DIR=/tmp/weather-deploy/34820072164-1' in (p/'environ').read_bytes().split(b'\0')
+                    if importer or decompressor or old_deploy:
+                        if old_deploy:
+                            for child in (p/'task'/p.name/'children').read_text().split():
+                                cp = Path('/proc')/child
+                                if (cp/'comm').read_text().strip() == 'kubectl':
+                                    print('Terminate abandoned kubectl', child, flush=True)
+                                    os.kill(int(child), signal.SIGTERM)
+                        print('Terminate abandoned process', p.name, comm, flush=True)
+                        os.kill(int(p.name), signal.SIGTERM)
+                except (FileNotFoundError, ProcessLookupError, PermissionError):
+                    pass
+            PY
+            check() {
+              echo "== $1 $(date -Is) =="
+              shift
+              timeout --kill-after=3s 30s "$@"
+              echo "exit=$?"
+            }
+            check pressure vmstat 2 5
+            check memory free -h
+            check api-ready kubectl --request-timeout=15s get --raw=/readyz
+            check pods kubectl --request-timeout=15s -n weather get pods -o wide
+            check containerd k3s ctr version
+            check deploy-lock flock -n /var/lock/weather-deploy.lock true
+            # Cgroup paths identify duplicate runtimes without printing command arguments.
+            check workload-cgroups bash -c 'for p in /proc/[0-9]*; do read -r name < "$p/comm" 2>/dev/null || continue; case "$name" in java|uvicorn) echo "$p $name"; cat "$p/cgroup";; esac; done'
+            echo "== recovery checks complete =="
