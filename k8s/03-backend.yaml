@@ -20,6 +20,9 @@ metadata:
   namespace: weather
 spec:
   replicas: 1
+  # Small node also runs MySQL/PostGIS/Redis/SAM; avoid surging a second JVM.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: backend
@@ -33,6 +36,8 @@ spec:
           image: weather_backend:latest
           imagePullPolicy: IfNotPresent
           env:
+            - name: JAVA_TOOL_OPTIONS
+              value: -XX:MaxRAMPercentage=50 -XX:+ExitOnOutOfMemoryError
             - name: SAM2_SERVICE_URL
               value: http://python-agent:8000
             - name: TZ

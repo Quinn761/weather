@@ -69,13 +69,12 @@ jobs:
 
       - name: Save images and manifests
         run: |
-          docker pull redis:7.4-alpine
+          # Redis is already on the server from prior deploys; skip re-shipping it every release.
           docker save \
             "weather_backend:${IMAGE_TAG}" \
             weather_backend:latest \
             "weather_frontend:${IMAGE_TAG}" \
             weather_frontend:latest \
-            redis:7.4-alpine \
             | gzip -1 > weather-images.tar.gz
           tar czf weather-k8s.tar.gz k8s
           ls -lh weather-images.tar.gz weather-k8s.tar.gz
@@ -122,6 +121,12 @@ jobs:
             tar xzf "$k8s" -C /tmp/weather-k8s-unpack
             K8SDIR="/tmp/weather-k8s-unpack/k8s"
 
+            SAM2_URL="${SAM2_SERVICE_URL:-http://python-agent:8000}"
+            # Bake image tags + SAM URL into manifests so apply triggers a single rollout.
+            sed -i "s|image: weather_backend:.*|image: weather_backend:${IMAGE_TAG}|" "$K8SDIR/03-backend.yaml"
+            sed -i "s|value: http://python-agent:8000|value: ${SAM2_URL}|" "$K8SDIR/03-backend.yaml"
+            sed -i "s|image: weather_frontend:.*|image: weather_frontend:${IMAGE_TAG}|" "$K8SDIR/04-frontend.yaml"
+
             kubectl apply -f "$K8SDIR/01-config.yaml"
             kubectl apply -f "$K8SDIR/02-redis.yaml"
             kubectl apply -f "$K8SDIR/03-backend.yaml"
@@ -154,31 +159,47 @@ jobs:
             fi
 
             # SAM is deployed independently because its model image is large.
-            # A frontend/backend release must preserve an existing inference service.
-            kubectl -n weather set env deploy/backend \
-              "SAM2_SERVICE_URL=${SAM2_SERVICE_URL:-http://python-agent:8000}"
             if [ -z "${SAM2_SERVICE_URL:-}" ] && ! kubectl -n weather get service python-agent >/dev/null 2>&1; then
               echo "SAM 2.1 尚未部署：需要独立部署 python-agent，或设置仓库变量 SAM2_SERVICE_URL。"
             fi
 
-            kubectl -n weather set image deploy/backend "backend=weather_backend:${IMAGE_TAG}"
-            kubectl -n weather set image deploy/frontend "frontend=weather_frontend:${IMAGE_TAG}"
-
             dump() {
               echo "===== pods ====="
               kubectl -n weather get pods -o wide || true
-              echo "===== backend ====="
-              kubectl -n weather describe deploy/backend | tail -60 || true
-              kubectl -n weather logs deploy/backend --tail=120 || true
+              echo "===== backend pods ====="
+              kubectl -n weather describe pods -l app=backend | tail -120 || true
+              echo "===== backend logs ====="
+              kubectl -n weather logs -l app=backend --tail=120 --prefix=true || true
+              kubectl -n weather logs -l app=backend --tail=120 --previous --prefix=true || true
               echo "===== redis ====="
               kubectl -n weather logs deploy/redis --tail=40 || true
+              echo "===== memory ====="
+              free -h || true
               echo "===== disk ====="
               df -h || true
               exit 1
             }
 
-            kubectl -n weather rollout status deploy/backend --timeout=360s || dump
-            kubectl -n weather rollout status deploy/frontend --timeout=120s || dump
+            wait_rollout() {
+              local deploy="$1"
+              local timeout_s="$2"
+              local deadline=$((SECONDS + timeout_s))
+              while (( SECONDS < deadline )); do
+                if kubectl -n weather get pods -l "app=${deploy}" --no-headers 2>/dev/null \
+                  | awk '{print $3}' | grep -Eq '^(Error|CrashLoopBackOff|OOMKilled|ImagePullBackOff|ErrImageNeverPull)$'; then
+                  echo "${deploy} pod entered a terminal failure state"
+                  return 1
+                fi
+                if kubectl -n weather rollout status "deploy/${deploy}" --timeout=8s; then
+                  return 0
+                fi
+              done
+              echo "timed out waiting for deploy/${deploy}"
+              return 1
+            }
+
+            wait_rollout backend 240 || dump
+            wait_rollout frontend 120 || dump
             curl -fsS "http://127.0.0.1:30080/api/health" || dump
             echo
             kubectl -n weather get pods
