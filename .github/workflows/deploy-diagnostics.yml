@@ -2,9 +2,6 @@ name: Deploy diagnostics
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: [.github/workflows/deploy-diagnostics.yml]
 
 permissions:
   contents: read
@@ -35,12 +32,14 @@ jobs:
             check disk df -h /
             check pressure vmstat 1 5
             # Command names only: process arguments can contain deployment secrets.
-            check processes ps -eo pid,ppid,stat,comm,rss,pcpu --sort=-rss
+            check processes bash -c 'ps -eo pid,ppid,stat,comm,rss,pcpu --sort=-rss | head -20'
             check k3s-service systemctl is-active k3s
             check api-ready kubectl --request-timeout=10s get --raw=/readyz
             check node kubectl --request-timeout=10s get nodes
             check pods kubectl --request-timeout=10s -n weather get pods -o wide
             check python-replicas kubectl --request-timeout=10s -n weather get deploy python-agent -o wide
+            check python-ready kubectl --request-timeout=10s -n weather rollout status deploy/python-agent --timeout=15s
+            check backend-health curl --connect-timeout 5 --max-time 15 -fsS http://127.0.0.1:30080/api/health
             check containerd k3s ctr version
             check deploy-lock flock -n /var/lock/weather-deploy.lock true
             echo "== diagnostics complete =="
