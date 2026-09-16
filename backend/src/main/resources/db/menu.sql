@@ -33,5 +33,18 @@ INSERT IGNORE INTO sys_menu (id, parent_id, name, path, icon, sort_no, permissio
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES
 (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9);
 
+INSERT INTO sys_menu (parent_id, name, path, icon, sort_no, permission_code, type, status, created_at, updated_at)
+SELECT 0, '摄像头列表', '/cameras', 'VideoCamera', 52, 'camera:read', 'MENU', 'ENABLED', NOW(6), NOW(6)
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE permission_code = 'camera:read');
+
+INSERT INTO sys_menu (parent_id, name, path, icon, sort_no, permission_code, type, status, created_at, updated_at)
+SELECT id, '编辑摄像头', NULL, NULL, 53, 'camera:write', 'BUTTON', 'ENABLED', NOW(6), NOW(6)
+FROM sys_menu
+WHERE permission_code = 'camera:read'
+  AND NOT EXISTS (SELECT 1 FROM sys_menu WHERE permission_code = 'camera:write');
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, id FROM sys_menu WHERE permission_code IN ('camera:read', 'camera:write');
+
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES
 (2, 1);

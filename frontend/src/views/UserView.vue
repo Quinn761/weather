@@ -150,33 +150,37 @@ function onSizeChange(size) { // 定义 onSizeChange 方法的入口
           </div>
         </div>
       </template>
-      <el-table :data="userStore.list" v-loading="userStore.loading" empty-text="暂无用户，请先新建">
-        <el-table-column prop="username" label="用户名" min-width="140" />
-        <el-table-column prop="nickname" label="显示名" min-width="140" />
-        <el-table-column prop="email" label="邮箱" min-width="180">
-          <template #default="{ row }">{{ row.email || '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="phone" label="手机号" width="140">
-          <template #default="{ row }">{{ row.phone || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="角色" min-width="140">
-          <template #default="{ row }">{{ (row.roles || []).join(' / ') || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'ENABLED' ? 'success' : 'info'" size="small">
-              {{ row.status === 'ENABLED' ? '启用' : '停用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="180" />
-        <el-table-column label="操作" width="150" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" text @click="openEdit(row)">编辑</el-button>
-            <el-button type="danger" text @click="remove(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="table-scroll">
+        <el-table :data="userStore.list" v-loading="userStore.loading" empty-text="暂无用户，请先新建">
+          <el-table-column prop="username" label="用户名" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="nickname" label="显示名" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="email" label="邮箱" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.email || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="phone" label="手机号" min-width="130" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.phone || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="角色" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">{{ (row.roles || []).join(' / ') || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'ENABLED' ? 'success' : 'info'" size="small">
+                {{ row.status === 'ENABLED' ? '启用' : '停用' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="createdAt" label="创建时间" min-width="170" show-overflow-tooltip />
+          <el-table-column label="操作" width="148" fixed="right">
+            <template #default="{ row }">
+              <div class="row-actions">
+                <el-button type="primary" text @click="openEdit(row)">编辑</el-button>
+                <el-button type="danger" text @click="remove(row)">删除</el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
       <div class="pager">
         <el-pagination
           background

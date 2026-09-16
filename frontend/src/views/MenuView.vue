@@ -127,35 +127,39 @@ async function remove(row) {
           <el-button v-if="canWrite" type="primary" @click="openCreate(0)">新建菜单</el-button>
         </div>
       </template>
-      <el-table
-        :data="menuStore.tree"
-        v-loading="menuStore.loading"
-        row-key="id"
-        default-expand-all
-        empty-text="暂无菜单"
-      >
-        <el-table-column prop="name" label="名称" min-width="180" />
-        <el-table-column prop="path" label="路由" min-width="140">
-          <template #default="{ row }">{{ row.path || '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="icon" label="图标" width="120">
-          <template #default="{ row }">{{ row.icon || '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="permissionCode" label="权限编码" min-width="160">
-          <template #default="{ row }">{{ row.permissionCode || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="类型" width="100">
-          <template #default="{ row }">{{ typeLabel[row.type] || row.type }}</template>
-        </el-table-column>
-        <el-table-column prop="sortNo" label="排序" width="80" />
-        <el-table-column v-if="canWrite" label="操作" width="220" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" text @click="openCreate(row.id)">子菜单</el-button>
-            <el-button type="primary" text @click="openEdit(row)">编辑</el-button>
-            <el-button type="danger" text @click="remove(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="table-scroll">
+        <el-table
+          :data="menuStore.tree"
+          v-loading="menuStore.loading"
+          row-key="id"
+          default-expand-all
+          empty-text="暂无菜单"
+        >
+          <el-table-column prop="name" label="名称" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="path" label="路由" min-width="140" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.path || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="icon" label="图标" width="120" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.icon || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="permissionCode" label="权限编码" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.permissionCode || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="类型" width="100">
+            <template #default="{ row }">{{ typeLabel[row.type] || row.type }}</template>
+          </el-table-column>
+          <el-table-column prop="sortNo" label="排序" width="80" />
+          <el-table-column v-if="canWrite" label="操作" width="228" fixed="right">
+            <template #default="{ row }">
+              <div class="row-actions">
+                <el-button type="primary" text @click="openCreate(row.id)">子菜单</el-button>
+                <el-button type="primary" text @click="openEdit(row)">编辑</el-button>
+                <el-button type="danger" text @click="remove(row)">删除</el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-card>
 
     <el-dialog

@@ -71,6 +71,8 @@ public class SecurityConfig { // 声明 SecurityConfig 类
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/**").hasAuthority("dashboard:view") // 工作台需要查看权限
                         .requestMatchers(HttpMethod.GET, "/api/gis/**").hasAuthority("gis:read") // 查询 GIS 标注需要读权限
                         .requestMatchers("/api/gis/**").hasAuthority("gis:write") // 改 GIS 标注需要写权限
+                        .requestMatchers(HttpMethod.GET, "/api/cameras/**").hasAuthority("camera:read")
+                        .requestMatchers("/api/cameras/**").hasAuthority("camera:write")
                         .requestMatchers(HttpMethod.GET, "/api/kb/**").hasAuthority("kb:read")
                         .requestMatchers("/api/kb/**").hasAuthority("kb:write")
                         .requestMatchers("/api/ai/**").hasAuthority("ai:chat") // 大模型助手需要对话权限

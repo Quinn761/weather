@@ -43,8 +43,22 @@ const router = createRouter({
         {
           path: 'gis',
           name: 'gis',
-          meta: { title: 'GIS 标注', permission: 'gis:read' },
+          meta: {
+            title: 'GIS 标注',
+            subtitle: '用地理视角，连接数据与现实世界',
+            permission: 'gis:read',
+          },
           component: () => import('@/views/GisView.vue'),
+        },
+        {
+          path: 'cameras',
+          name: 'cameras',
+          meta: {
+            title: '摄像头列表',
+            subtitle: '配置 GIS 工作台使用的实时视频设备',
+            permission: 'camera:read',
+          },
+          component: () => import('@/views/CameraListView.vue'),
         },
         {
           path: 'kb',

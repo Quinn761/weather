@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-import { Monitor, SwitchButton } from '@element-plus/icons-vue'
+import { Bell, Monitor, SwitchButton, UserFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import BrandLogo from '@/components/BrandLogo.vue'
+import WorkspaceBackdrop from '@/components/WorkspaceBackdrop.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,9 +31,12 @@ function flattenMenus(nodes) {
 const visibleMenus = computed(() => flattenMenus(authStore.user?.menus || []))
 const active = computed(() => route.path)
 const pageTitle = computed(() => route.meta.title || 'Weather Data Hub')
+const pageSubtitle = computed(() => route.meta.subtitle || '')
+const isGisPage = computed(() => route.path === '/gis')
 
 function go(path) {
-  router.push(path)
+  if (route.path === path) return
+  router.push(path).catch(() => {})
 }
 
 async function logout() {
@@ -41,15 +46,14 @@ async function logout() {
 </script>
 
 <template>
-  <div class="shell">
+  <div class="shell" :class="{ 'page-gis': isGisPage }">
+    <WorkspaceBackdrop />
     <aside class="sidebar">
       <div class="brand">
-        <span class="brand-mark">
-          <Monitor />
-        </span>
+        <BrandLogo :size="40" />
         <div>
           <strong>Weather Data Hub</strong>
-          <p>权限管理中心</p>
+          <p>空间 · 智能 · 连接</p>
         </div>
       </div>
       <nav class="menu">
@@ -77,16 +81,29 @@ async function logout() {
       </div>
     </aside>
     <div class="workspace">
-      <header class="topbar">
-        <div>
+      <header v-if="!isGisPage" class="topbar">
+        <div class="topbar-title">
           <h1>{{ pageTitle }}</h1>
-          <p>用户绑定角色，角色勾选菜单，菜单决定侧栏和接口权限</p>
+          <p v-if="pageSubtitle">{{ pageSubtitle }}</p>
         </div>
-        <div class="topbar-badge">{{ authStore.user?.username || '已登录' }}</div>
+        <div class="topbar-right">
+          <p class="topbar-motto">地形 · 数据 · 洞察 · 决策</p>
+          <button class="topbar-bell" type="button" aria-label="通知">
+            <el-icon><Bell /></el-icon>
+          </button>
+          <div class="topbar-badge">
+            <el-icon><UserFilled /></el-icon>
+            {{ authStore.user?.username || '已登录' }}
+          </div>
+        </div>
       </header>
       <main class="content">
-        <router-view />
+        <router-view :key="route.fullPath" />
       </main>
+      <footer class="workspace-foot">
+        <span>Weather Data Hub · 气象 · 地理 · 海洋 · 灾害 · 让世界更安全</span>
+        <span>© 2025 Weather Data Hub. All rights reserved.</span>
+      </footer>
     </div>
   </div>
 </template>

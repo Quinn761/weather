@@ -148,24 +148,28 @@ function clip(text) {
           </div>
         </div>
       </template>
-      <el-table :data="articles" v-loading="loading" empty-text="还没有知识文档">
-        <el-table-column prop="title" label="标题" min-width="180" />
-        <el-table-column label="摘要" min-width="280">
-          <template #default="{ row }">{{ clip(row.content) }}</template>
-        </el-table-column>
-        <el-table-column prop="tags" label="标签" width="140">
-          <template #default="{ row }">{{ row.tags || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="90">
-          <template #default="{ row }">{{ row.status === 'ENABLED' ? '启用' : '停用' }}</template>
-        </el-table-column>
-        <el-table-column v-if="canWrite" label="操作" width="160" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" text @click="openEdit(row)">编辑</el-button>
-            <el-button type="danger" text @click="remove(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="table-scroll">
+        <el-table :data="articles" v-loading="loading" empty-text="还没有知识文档">
+          <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
+          <el-table-column label="摘要" min-width="240" show-overflow-tooltip>
+            <template #default="{ row }">{{ clip(row.content) }}</template>
+          </el-table-column>
+          <el-table-column prop="tags" label="标签" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.tags || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">{{ row.status === 'ENABLED' ? '启用' : '停用' }}</template>
+          </el-table-column>
+          <el-table-column v-if="canWrite" label="操作" width="148" fixed="right">
+            <template #default="{ row }">
+              <div class="row-actions">
+                <el-button type="primary" text @click="openEdit(row)">编辑</el-button>
+                <el-button type="danger" text @click="remove(row)">删除</el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-card>
 
     <el-card shadow="never" class="panel">

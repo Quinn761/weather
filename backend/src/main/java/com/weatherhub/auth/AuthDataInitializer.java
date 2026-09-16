@@ -51,12 +51,14 @@ public class AuthDataInitializer implements ApplicationRunner { // 声明 AuthDa
         Long roleMenuId = ensureMenu("role:read", 0L, "角色管理", "/roles", "Avatar", 30, Menu.TYPE_MENU); // 角色管理页面
         Long menuMenuId = ensureMenu("menu:read", 0L, "菜单管理", "/menus", "Menu", 40, Menu.TYPE_MENU); // 菜单管理页面
         Long gisMenuId = ensureMenu("gis:read", 0L, "GIS 标注", "/gis", "Location", 50, Menu.TYPE_MENU);
+        Long cameraMenuId = ensureMenu("camera:read", 0L, "摄像头列表", "/cameras", "VideoCamera", 52, Menu.TYPE_MENU);
         Long kbMenuId = ensureMenu("kb:read", 0L, "知识库", "/kb", "Collection", 55, Menu.TYPE_MENU);
         ensureMenu("ai:chat", 0L, "Agent 工作台", "/ai", "ChatDotRound", 60, Menu.TYPE_MENU);
         ensureMenu("user:write", userMenuId, "编辑用户", null, null, 21, Menu.TYPE_BUTTON); // 用户写权限
         ensureMenu("role:write", roleMenuId, "编辑角色", null, null, 31, Menu.TYPE_BUTTON); // 角色写权限
         ensureMenu("menu:write", menuMenuId, "编辑菜单", null, null, 41, Menu.TYPE_BUTTON); // 菜单写权限
         ensureMenu("gis:write", gisMenuId, "编辑 GIS 标注", null, null, 51, Menu.TYPE_BUTTON);
+        ensureMenu("camera:write", cameraMenuId, "编辑摄像头", null, null, 53, Menu.TYPE_BUTTON);
         ensureMenu("kb:write", kbMenuId, "编辑知识库", null, null, 56, Menu.TYPE_BUTTON);
     } // 
 

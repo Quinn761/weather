@@ -88,20 +88,24 @@ async function remove(row) {
           <el-button v-if="canWrite" type="primary" @click="openCreate">新建角色</el-button>
         </div>
       </template>
-      <el-table :data="roleStore.list" v-loading="roleStore.loading" empty-text="暂无角色">
-        <el-table-column prop="code" label="编码" min-width="140" />
-        <el-table-column prop="name" label="名称" min-width="140" />
-        <el-table-column label="菜单数" width="120">
-          <template #default="{ row }">{{ (row.menuIds || []).length }}</template>
-        </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="180" />
-        <el-table-column v-if="canWrite" label="操作" width="150" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" text @click="openEdit(row)">编辑</el-button>
-            <el-button v-if="row.code !== 'ADMIN'" type="danger" text @click="remove(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="table-scroll">
+        <el-table :data="roleStore.list" v-loading="roleStore.loading" empty-text="暂无角色">
+          <el-table-column prop="code" label="编码" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="name" label="名称" min-width="140" show-overflow-tooltip />
+          <el-table-column label="菜单数" width="100">
+            <template #default="{ row }">{{ (row.menuIds || []).length }}</template>
+          </el-table-column>
+          <el-table-column prop="createdAt" label="创建时间" min-width="170" show-overflow-tooltip />
+          <el-table-column v-if="canWrite" label="操作" width="148" fixed="right">
+            <template #default="{ row }">
+              <div class="row-actions">
+                <el-button type="primary" text @click="openEdit(row)">编辑</el-button>
+                <el-button v-if="row.code !== 'ADMIN'" type="danger" text @click="remove(row)">删除</el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-card>
 
     <el-dialog
