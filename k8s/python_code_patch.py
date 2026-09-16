@@ -12,9 +12,23 @@ def build_patch(deployment, config_name):
         raise ValueError("Expected a single Python Agent application container")
     return {"spec": {"template": {"spec": {
         "volumes": [{"name": "agent-source", "configMap": {"name": config_name}}],
-        "containers": [{"name": containers[0]["name"], "volumeMounts": [
-            {"name": "agent-source", "mountPath": "/app/app", "readOnly": True}
-        ]}],
+        "containers": [{
+            "name": containers[0]["name"],
+            "volumeMounts": [
+                {"name": "agent-source", "mountPath": "/app/app", "readOnly": True}
+            ],
+            # The original SAM Deployment predates LLM support on some servers.
+            # Add the Secret reference during every source update; Kubernetes
+            # merges env entries by name and never stores the Key in this patch.
+            "env": [{
+                "name": "AI_API_KEY",
+                "valueFrom": {"secretKeyRef": {
+                    "name": "weather-secret",
+                    "key": "AI_API_KEY",
+                    "optional": True,
+                }},
+            }],
+        }],
     }}}}
 
 

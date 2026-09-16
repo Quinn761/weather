@@ -11,8 +11,12 @@ class SourcePatchTest(unittest.TestCase):
         container = patch["spec"]["template"]["spec"]["containers"][0]
         self.assertEqual(container["name"], "weather-python-agent-existing")
         self.assertNotIn("image", container)
-        self.assertNotIn("env", container)
         self.assertTrue(container["volumeMounts"][0]["readOnly"])
+        self.assertEqual(container["env"][0]["name"], "AI_API_KEY")
+        self.assertEqual(
+            container["env"][0]["valueFrom"]["secretKeyRef"]["name"],
+            "weather-secret",
+        )
 
     def test_rejects_ambiguous_container_selection(self):
         with self.assertRaises(ValueError):
