@@ -268,19 +268,11 @@ jobs:
             wait_rollout() {
               local deploy="$1"
               local timeout_s="$2"
-              local deadline=$((SECONDS + timeout_s))
-              while (( SECONDS < deadline )); do
-                if kubectl -n weather get pods -l "app=${deploy}" --no-headers 2>/dev/null \
-                  | awk '{print $3}' | grep -Eq '^(Error|CrashLoopBackOff|OOMKilled|ImagePullBackOff|ErrImageNeverPull)$'; then
-                  echo "${deploy} pod entered a terminal failure state"
-                  return 1
-                fi
-                if kubectl -n weather rollout status "deploy/${deploy}" --timeout=8s; then
-                  return 0
-                fi
-              done
-              echo "timed out waiting for deploy/${deploy}"
-              return 1
+              # Do not inspect every historical Pod selected by app=${deploy} here.
+              # A completed/failed Pod from an older ReplicaSet can coexist briefly
+              # with the new revision and must not abort an otherwise healthy rollout.
+              # Kubernetes rollout status tracks the Deployment's current revision.
+              kubectl -n weather rollout status "deploy/${deploy}" --timeout="${timeout_s}s"
             }
 
             echo "== rollout backend/frontend =="
