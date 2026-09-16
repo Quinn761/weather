@@ -233,6 +233,12 @@ jobs:
 
             if [ -n "$PYTHON_REPLICAS" ]; then
               echo "== publish Python Agent source =="
+              # Reapply the canonical Deployment manifest so older clusters that
+              # were created before LLM support also receive its Secret env ref.
+              # Keep it scaled down until the versioned source mount is patched.
+              cp "$K8SDIR/05-python-agent.yaml" "$DEPLOY_DIR/05-python-agent.yaml"
+              sed -i 's/^  replicas: 1$/  replicas: 0/' "$DEPLOY_DIR/05-python-agent.yaml"
+              kubectl apply -f "$DEPLOY_DIR/05-python-agent.yaml"
               CODE_CONFIG="python-agent-code-${IMAGE_TAG:0:12}"
               kubectl -n weather create configmap "$CODE_CONFIG" --from-file="$K8SDIR/python-agent-app" --dry-run=client -o yaml | kubectl apply -f -
               kubectl -n weather get deploy python-agent -o json | python3 "$K8SDIR/python_code_patch.py" "$CODE_CONFIG" > "$DEPLOY_DIR/python-patch.json"
