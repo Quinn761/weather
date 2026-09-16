@@ -85,9 +85,24 @@ def openai_client() -> OpenAI:
 
 
 
-def local_review(req: ReviewRequest) -> str:
+def llm_failure_reason(exc: Exception) -> str:
+    """Return a user-safe diagnosis without exposing headers, keys, or raw payloads."""
+    text = str(exc).lower()
+    if "401" in text or "authentication" in text or "invalid api key" in text:
+        return "模型 API Key 无效或已失效"
+    if "402" in text or "insufficient balance" in text or "insufficient_quota" in text:
+        return "模型账户余额或额度不足"
+    if "429" in text or "rate limit" in text:
+        return "模型服务请求过于频繁，请稍后重试"
+    if "timeout" in text or "timed out" in text or "connect" in text:
+        return "服务器无法连接模型服务或请求超时"
+    return "模型服务调用失败，请查看服务器执行记录"
+
+
+def local_review(req: ReviewRequest, failure_reason: str = "") -> str:
     if not req.evidences:
-        return "当前大模型不可用，暂时无法进行通用对话。请检查模型配置或稍后重试。"
+        reply = "当前大模型不可用，暂时无法进行通用对话。请检查模型配置或稍后重试。"
+        return f"{reply}\n\n原因：{failure_reason}" if failure_reason else reply
     evidence = "\n\n".join(req.evidences).strip()
     tools = "、".join(req.used_tools) if req.used_tools else "未调用工具"
     sources = "、".join(req.rag_sources) if req.rag_sources else "未命中 RAG"
@@ -184,7 +199,9 @@ def review(req: ReviewRequest) -> ReviewResponse:
                 trace.append(TraceStep(stage="python-agent", detail="LLM reviewer completed"))
                 return ReviewResponse(reply=reply, mode="python-llm", trace=trace)
         except Exception as exc:
-            trace.append(TraceStep(stage="python-agent", detail=f"LLM failed: {exc}"))
+            reason = llm_failure_reason(exc)
+            trace.append(TraceStep(stage="python-agent", detail=f"LLM failed: {reason}"))
+            return ReviewResponse(reply=local_review(req, reason), mode="python-local", trace=trace)
     trace.append(TraceStep(stage="python-agent", detail="Local reviewer completed"))
     return ReviewResponse(reply=local_review(req), mode="python-local", trace=trace)
 
@@ -195,6 +212,7 @@ def review_stream(req: ReviewRequest) -> StreamingResponse:
     trace.append(TraceStep(stage="python-agent", detail="Python reviewer stream started"))
 
     def events() -> Iterator[bytes]:
+        failure_reason = ""
         if ai_configured():
             try:
                 full: list[str] = []
@@ -206,8 +224,9 @@ def review_stream(req: ReviewRequest) -> StreamingResponse:
                     yield sse({"done": True, "mode": "python-llm", "reply": reply})
                     return
             except Exception as exc:
-                yield sse({"error": f"LLM failed: {exc}"})
-        reply = local_review(req)
+                failure_reason = llm_failure_reason(exc)
+                yield sse({"error": f"LLM failed: {failure_reason}"})
+        reply = local_review(req, failure_reason)
         yield sse({"text": reply})
         yield sse({"done": True, "mode": "python-local", "reply": reply})
 
