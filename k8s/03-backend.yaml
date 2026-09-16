@@ -137,6 +137,9 @@ spec:
           ports:
             - containerPort: 8080
               name: http
+          volumeMounts:
+            - name: camera-snapshots
+              mountPath: /data/camera-snapshots
           readinessProbe:
             httpGet:
               path: /api/health
@@ -145,3 +148,20 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 12
+      volumes:
+        - name: camera-snapshots
+          persistentVolumeClaim:
+            claimName: camera-snapshots
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: camera-snapshots
+  namespace: weather
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
