@@ -8,6 +8,7 @@ import {
   Camera,
   Cpu,
   Delete,
+  EditPen,
   Location,
   MagicStick,
   Refresh,
@@ -73,6 +74,7 @@ const saving = ref(false)
 const loading = ref(false)
 const showUavLayer = ref(true)
 const clickedTiandituTile = ref(null)
+const manualDrawMode = ref(false)
 const aiDelineateMode = ref(false)
 const aiProvider = ref('roboflow')
 const aiProviderName = computed(() => aiProvider.value === 'sam2.1' ? 'SAM 2.1' : 'Roboflow')
@@ -104,6 +106,8 @@ let handler
 let draftSource
 let savedSource
 let cameraSource
+let cameraMarkersReady = false
+let cameraRevealTimer = 0
 let suppressClickUntil = 0
 let resizeObserver
 let removeTileListener
@@ -186,7 +190,7 @@ async function openCamera(camera) {
 }
 
 function renderCameraMarkers() {
-  if (!isViewerLive() || !cameraSource) return
+  if (!isViewerLive() || !cameraSource || !cameraMarkersReady) return
   cameraSource.entities.removeAll()
   cameras.value.forEach((camera) => {
     if (!Number.isFinite(camera.longitude) || !Number.isFinite(camera.latitude)) return
@@ -214,7 +218,29 @@ function renderCameraMarkers() {
       },
     })
   })
+  cameraSource.show = true
   viewer.scene.requestRender()
+}
+
+function queueCameraMarkersReveal() {
+  if (!isViewerLive() || !cameraSource) return
+  if (cameraRevealTimer) {
+    window.clearTimeout(cameraRevealTimer)
+    cameraRevealTimer = 0
+  }
+  const generation = mountGeneration
+  const tryReveal = () => {
+    cameraRevealTimer = 0
+    if (!isViewerLive() || generation !== mountGeneration || !cameraSource) return
+    if (introRunning) {
+      cameraRevealTimer = window.setTimeout(tryReveal, 120)
+      return
+    }
+    cameraMarkersReady = true
+    renderCameraMarkers()
+  }
+  // 入场结束后稍等，让地球底图先落稳，再显示标识
+  cameraRevealTimer = window.setTimeout(tryReveal, 350)
 }
 
 function flyToCameraLocation(camera) {
@@ -421,11 +447,21 @@ async function copyTileCorners() {
   }
 }
 
+function toggleManualDraw() {
+  if (!canWrite.value || mapBusy.value) return
+  manualDrawMode.value = !manualDrawMode.value
+  if (manualDrawMode.value) {
+    aiDelineateMode.value = false
+    ElMessage.info('手动圈地已开启：单击加点，双击或闭合完成')
+  }
+}
+
 function handleAiDelineateClick(provider = 'roboflow') {
   if (mapBusy.value) return
   aiDelineateMode.value = !(aiDelineateMode.value && aiProvider.value === provider)
   aiProvider.value = provider
   if (aiDelineateMode.value) {
+    manualDrawMode.value = false
     clearDraft()
     ElMessage.info(provider === 'sam2.1' ? 'SAM 2.1 已开启，请点击田块内部' : 'AI 圈地已开启，请点击田块获取瓦片并调用识别')
   }
@@ -1056,6 +1092,7 @@ function restoreAfterIntro() {
   controller.enableInputs = true
   viewer.scene.requestRender()
   startGlobeSpin()
+  queueCameraMarkersReveal()
 }
 
 function stopEarthIntro(restoreControls = true) {
@@ -1076,6 +1113,7 @@ function playEarthIntro() {
   if (viewer.scene.mode !== SceneMode.SCENE3D) {
     applyHomeView()
     startGlobeSpin()
+    queueCameraMarkersReveal()
     return
   }
   const token = beginFlight()
@@ -1285,8 +1323,23 @@ function addPolygonVertex(coordinate, screenPosition) {
   redrawDraft()
 }
 
+function pickCameraAt(screenPosition) {
+  if (!isViewerLive()) return null
+  const picked = viewer.scene.pick(screenPosition)
+  const entityId = picked?.id?.id != null ? String(picked.id.id) : ''
+  if (!entityId.startsWith('camera-')) return null
+  const cameraId = entityId.slice('camera-'.length)
+  return cameras.value.find((item) => String(item.id) === cameraId) || null
+}
+
 async function handleMapClick(event) {
-  if (!canWrite.value || saving.value || aiDelineating.value || Date.now() < suppressClickUntil) return
+  if (saving.value || aiDelineating.value || Date.now() < suppressClickUntil) return
+  const camera = pickCameraAt(event.position)
+  if (camera) {
+    openCamera(camera)
+    return
+  }
+  if (!canWrite.value) return
   const position = pickOnGlobe(event.position)
   if (!position) return
   const coordinate = toLonLatHeight(position)
@@ -1295,18 +1348,19 @@ async function handleMapClick(event) {
     await runAiDelineate(clickedTiandituTile.value)
     return
   }
-  if (aiDraftLocked.value) return
+  if (aiDraftLocked.value || !manualDrawMode.value) return
   addPolygonVertex(coordinate, event.position)
 }
 
 function handleMapMove(event) {
-  if (!canWrite.value || aiDelineateMode.value || aiDraftLocked.value || !drawingPoints.value.length) return
+  if (!canWrite.value || !manualDrawMode.value || aiDelineateMode.value || aiDraftLocked.value || !drawingPoints.value.length) return
   const position = pickOnGlobe(event.endPosition)
   cursorCoordinate.value = position ? toLonLatHeight(position) : null
 }
 
 function handleDoubleClick(event) {
   if (!canWrite.value || saving.value || aiDelineateMode.value || aiDraftLocked.value) return
+  if (!manualDrawMode.value && !drawingPoints.value.length) return
   suppressClickUntil = Date.now() + 300
   if (drawingPoints.value.length >= 4) {
     const last = drawingPoints.value[drawingPoints.value.length - 1]
@@ -1319,10 +1373,12 @@ function handleDoubleClick(event) {
 
 function onDrawKeydown(event) {
   if (!canWrite.value || saving.value || aiDelineateMode.value || aiDraftLocked.value) return
+  if (!manualDrawMode.value && !drawingPoints.value.length) return
   const tag = event.target?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA') return
   if (event.key === 'Escape') {
     clearDraft()
+    manualDrawMode.value = false
     return
   }
   if (event.key === 'Backspace' || event.key === 'Delete') {
@@ -1341,6 +1397,7 @@ function bindMapEvents() {
   handler.setInputAction(handleDoubleClick, ScreenSpaceEventType.LEFT_DOUBLE_CLICK)
   handler.setInputAction(() => {
     if (aiDelineateMode.value || aiDraftLocked.value) return
+    if (!manualDrawMode.value && !drawingPoints.value.length) return
     undoLastVertex()
   }, ScreenSpaceEventType.RIGHT_CLICK)
   viewer.cesiumWidget.canvas.addEventListener('contextmenu', (event) => event.preventDefault())
@@ -1513,12 +1570,19 @@ watch(showUavLayer, (visible) => {
   viewer.scene.requestRender()
 })
 
-watch(cameras, renderCameraMarkers)
+watch(cameras, () => {
+  if (cameraMarkersReady) renderCameraMarkers()
+})
 
 function teardownGisPage() {
   pageAlive = false
   destroyCameraPlayer()
   mountGeneration += 1
+  cameraMarkersReady = false
+  if (cameraRevealTimer) {
+    window.clearTimeout(cameraRevealTimer)
+    cameraRevealTimer = 0
+  }
   window.removeEventListener('keydown', onDrawKeydown)
   introRunning = false
   if (introTimer) {
@@ -1584,6 +1648,7 @@ function teardownGisPage() {
   activeFeatureId.value = null
   drawingPoints.value = []
   pendingAiPolygons.value = []
+  manualDrawMode.value = false
   aiDelineateMode.value = false
   aiDelineating.value = false
 }
@@ -1602,18 +1667,21 @@ onMounted(async () => {
     draftSource = new CustomDataSource('draft-features')
     savedSource = new CustomDataSource('saved-features')
     cameraSource = new CustomDataSource('camera-devices')
+    cameraSource.show = false
+    cameraMarkersReady = false
     await viewer.dataSources.add(savedSource)
     if (!isViewerLive() || generation !== mountGeneration) return
     await viewer.dataSources.add(draftSource)
     if (!isViewerLive() || generation !== mountGeneration) return
     await viewer.dataSources.add(cameraSource)
     if (!isViewerLive() || generation !== mountGeneration) return
-    renderCameraMarkers()
     bindMapEvents()
     bindResize()
     window.addEventListener('keydown', onDrawKeydown)
     enableTerrain(generation)
     fetchFeatures()
+    // 地球瓦片与入场动画完成后再显示摄像头标识
+    if (!introRunning) queueCameraMarkersReveal()
   } catch (error) {
     if (pageAlive && generation === mountGeneration) {
       console.warn('[GisView] 初始化中断', error)
@@ -1671,6 +1739,16 @@ onBeforeUnmount(() => {
       <div class="gis-toolbar gis-toolbar-operation">
         <div class="toolbar-actions">
         <div class="toolbar-group toolbar-group-draft">
+          <el-button
+            :disabled="!canWrite || mapBusy"
+            :type="manualDrawMode ? 'success' : 'default'"
+            :class="{ 'is-active-tech': manualDrawMode }"
+            :aria-pressed="manualDrawMode"
+            @click="toggleManualDraw"
+          >
+            <el-icon><EditPen /></el-icon>
+            手动圈地
+          </el-button>
           <el-button :disabled="!canSaveDraft" :loading="saving" type="primary" :class="{ 'is-ready-tech': canSaveDraft }" @click="savePolygon">
             <el-icon><Camera /></el-icon>
             {{ pendingAiPolygons.length ? `提交（${pendingAiPolygons.length}）` : '保存' }}
@@ -1715,7 +1793,11 @@ onBeforeUnmount(() => {
         <p class="camera-panel-hint">选择设备后，在地图中打开实时预览</p>
       </aside>
       <div class="map-stage" :style="{ '--toolbar-button-image': `url(${toolbarHudButton})` }">
-        <div ref="mapEl" class="cesium-map" />
+        <div
+          ref="mapEl"
+          class="cesium-map"
+          :class="{ 'is-drawing': manualDrawMode || aiDelineateMode }"
+        />
         <section v-if="showCameraPlayer" class="map-camera-player" aria-label="摄像头实时预览">
           <header>
             <div>
@@ -1817,7 +1899,7 @@ onBeforeUnmount(() => {
             <pre>{{ clickedTiandituTile.cornersText }}</pre>
           </div>
         </div>
-        <el-empty v-if="!features.length" description="暂无地块，单击地图开始圈地" />
+        <el-empty v-if="!features.length" description="暂无地块，可开启手动圈地或 AI 圈地" />
         <div v-else class="feature-list">
           <div v-for="feature in features" :key="feature.id" class="feature-item" :class="{ active: activeFeatureId === feature.id }">
             <img class="feature-pin" :src="annotationPin" alt="" />
@@ -1892,10 +1974,14 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  cursor: crosshair;
+  cursor: grab;
   background: #000;
   border: 1px solid #dfe7f1;
   border-radius: 8px;
+}
+
+.cesium-map.is-drawing {
+  cursor: crosshair;
 }
 
 .cesium-map :deep(.cesium-viewer),

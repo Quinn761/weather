@@ -451,7 +451,7 @@ function formatWhen(value) {
 .prompt-grid b { display: block; font-weight: 500; font-size: 13px; margin: 9px 0; }
 .prompt-grid small { display: flex; justify-content: space-between; color: #98a6b0; font-size: 11px; }
 .bubble { min-width: 0; max-width: 100%; line-height: 0.8; overflow-wrap: anywhere; flex-shrink: 0; }
-.bubble.user { margin-left: auto; max-width: 85%; background: #edf5f7; border: 1px solid #e3edf0; border-radius: 12px 3px 12px 12px; padding: 12px 17px; font-size: 14px; }
+.bubble.user { margin-left: auto; max-width: 85%; background: #edf5f7; border: 1px solid #e3edf0; border-radius: 12px 3px 12px 12px; padding: 12px 17px; font-size: 14px; line-height: 1.5; }
 .bubble p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .bubble.assistant { padding: 0 0 10px; width: 100%; }
 .bubble-role { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: #547788; font-size: 12px; font-weight: 600; }
