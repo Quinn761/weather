@@ -238,6 +238,19 @@ jobs:
               kubectl -n weather get deploy python-agent -o json | python3 "$K8SDIR/python_code_patch.py" "$CODE_CONFIG" > "$DEPLOY_DIR/python-patch.json"
               kubectl -n weather patch deploy python-agent --type strategic --patch-file "$DEPLOY_DIR/python-patch.json"
               rm -f "$DEPLOY_DIR/python-patch.json"
+              # Secret-backed environment variables are read only at Pod creation.
+              # Bring the Agent back before deploying the Backend, then assert it
+              # actually received the key instead of silently falling back later.
+              echo "== restart and verify Python Agent =="
+              kubectl -n weather scale deploy/python-agent --replicas="$PYTHON_REPLICAS"
+              kubectl -n weather rollout status deploy/python-agent --timeout=180s
+              PYTHON_LLM_CONFIGURED="$(kubectl -n weather exec deploy/python-agent -- python -c 'import json, urllib.request; print(json.load(urllib.request.urlopen("http://127.0.0.1:8000/health", timeout=5))["llmConfigured"])')"
+              if [ "$PYTHON_LLM_CONFIGURED" != "True" ]; then
+                echo "Python Agent did not receive AI_API_KEY; aborting deployment"
+                exit 1
+              fi
+              echo "Python Agent LLM configuration verified"
+              PYTHON_REPLICAS=""
             fi
 
             kubectl apply -f "$K8SDIR/03-backend.yaml"
