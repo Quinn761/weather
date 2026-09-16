@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-import { Bell, Monitor, SwitchButton, UserFilled } from '@element-plus/icons-vue'
+import { Bell, Monitor, SwitchButton } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/BrandLogo.vue'
 import WorkspaceBackdrop from '@/components/WorkspaceBackdrop.vue'
@@ -33,6 +33,7 @@ const active = computed(() => route.path)
 const pageTitle = computed(() => route.meta.title || 'Weather Data Hub')
 const pageSubtitle = computed(() => route.meta.subtitle || '')
 const isGisPage = computed(() => route.path === '/gis')
+const isCameraDetailPage = computed(() => route.name === 'camera-detail')
 
 function go(path) {
   if (route.path === path) return
@@ -46,9 +47,9 @@ async function logout() {
 </script>
 
 <template>
-  <div class="shell" :class="{ 'page-gis': isGisPage }">
+  <div class="shell" :class="{ 'page-gis': isGisPage, 'page-camera-detail': isCameraDetailPage }">
     <WorkspaceBackdrop />
-    <aside class="sidebar">
+    <aside v-if="!isCameraDetailPage" class="sidebar">
       <div class="brand">
         <BrandLogo :size="40" />
         <div>
@@ -81,20 +82,15 @@ async function logout() {
       </div>
     </aside>
     <div class="workspace">
-      <header v-if="!isGisPage" class="topbar">
+      <header v-if="!isGisPage && !isCameraDetailPage" class="topbar">
         <div class="topbar-title">
           <h1>{{ pageTitle }}</h1>
           <p v-if="pageSubtitle">{{ pageSubtitle }}</p>
         </div>
         <div class="topbar-right">
-          <p class="topbar-motto">地形 · 数据 · 洞察 · 决策</p>
           <button class="topbar-bell" type="button" aria-label="通知">
             <el-icon><Bell /></el-icon>
           </button>
-          <div class="topbar-badge">
-            <el-icon><UserFilled /></el-icon>
-            {{ authStore.user?.username || '已登录' }}
-          </div>
         </div>
       </header>
       <main class="content">

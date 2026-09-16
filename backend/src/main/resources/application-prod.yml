@@ -37,6 +37,13 @@ weatherhub:
     embedding-model: ${AI_EMBEDDING_MODEL:}
     timeout-seconds: ${AI_TIMEOUT_SECONDS:90}
     max-tool-rounds: ${AI_MAX_TOOL_ROUNDS:6}
+  camera:
+    capture:
+      enabled: ${CAMERA_CAPTURE_ENABLED:false}
+      stream-url: ${CAMERA_CAPTURE_STREAM_URL:}
+      storage-path: ${CAMERA_CAPTURE_STORAGE_PATH:/data/camera-snapshots}
+      ffmpeg-command: ${FFMPEG_COMMAND:ffmpeg}
+      timeout-seconds: ${CAMERA_CAPTURE_TIMEOUT_SECONDS:45}
 
 logging:
   level:

@@ -1,9 +1,10 @@
 ﻿import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Iterator, Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
 from pydantic import BaseModel, Field
@@ -59,6 +60,64 @@ class AgentRunResponse(BaseModel):
 
 app = FastAPI(title="Weather Data Hub Python Agent", version="0.1.0")
 app.include_router(sam2_router)
+
+
+def roboflow_configured() -> bool:
+    return bool(os.getenv("ROBOFLOW_API_KEY", "").strip())
+
+
+def fallback_multipart_image(content_type: str, body: bytes) -> bytes:
+    """Extract an image part when a Java client sends an unparsed multipart body."""
+    match = re.search(r"boundary=(?:\"([^\"]+)\"|([^;\s]+))", content_type, re.IGNORECASE)
+    if not match:
+        return body if body.startswith(b"\xff\xd8") else b""
+    marker = b"--" + (match.group(1) or match.group(2)).encode("utf-8")
+    for part in body.split(marker):
+        headers, separator, payload = part.partition(b"\r\n\r\n")
+        if separator and b'name="image"' in headers.lower():
+            return payload.rstrip(b"\r\n")
+    return b""
+
+
+@app.post("/camera-monitoring/analyze")
+async def analyze_camera_snapshot(request: Request) -> dict[str, Any]:
+    """Run the configured Roboflow workflow for one camera snapshot."""
+    if not roboflow_configured():
+        raise HTTPException(status_code=503, detail="ROBOFLOW_API_KEY is not configured")
+    content_type = request.headers.get("content-type", "")
+    raw_body = await request.body()
+    image_bytes = fallback_multipart_image(content_type, raw_body)
+    if not image_bytes:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Missing image upload (content_type={content_type}, body_bytes={len(raw_body)})",
+        )
+    suffix = ".jpg"
+    temp_path = Path(os.getenv("TEMP", ".")) / f"weatherhub-monitoring-{os.urandom(8).hex()}{suffix}"
+    try:
+        temp_path.write_bytes(image_bytes)
+        if temp_path.stat().st_size == 0:
+            raise HTTPException(status_code=400, detail="The uploaded image is empty")
+        from inference_sdk import InferenceConfiguration, InferenceHTTPClient
+
+        client = InferenceHTTPClient(
+            api_url="https://serverless.roboflow.com",
+            api_key=os.environ["ROBOFLOW_API_KEY"],
+        ).configure(InferenceConfiguration(api_key_transport="header"))
+        result = client.run_workflow(
+            workspace_name="666s-workspace-l0hrj",
+            workflow_id="1789542233524",
+            images={"image": str(temp_path)},
+            use_cache=True,
+        )
+        return {"success": True, "result": result}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # Do not include request headers or the API key in responses.
+        raise HTTPException(status_code=502, detail=f"Roboflow workflow failed: {type(exc).__name__}: {exc}") from exc
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def ai_configured() -> bool:
@@ -185,6 +244,7 @@ def health() -> dict[str, Any]:
         "name": "weather-python-agent",
         "llmConfigured": ai_configured(),
         "sam2Configured": sam2_configured(),
+        "roboflowConfigured": roboflow_configured(),
     }
 
 

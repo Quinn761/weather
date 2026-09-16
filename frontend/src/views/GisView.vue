@@ -61,7 +61,7 @@ import cameraMarker from '@/assets/gis/camera-marker-tech.png'
 Ion.defaultAccessToken = ''
 
 const TIANDITU_TOKEN = '38ca5876c8ba7b71eb08803d408b6184'
-const GIS_PREVIEW_STREAM_URL = 'https://s9.nysdot.skyvdn.com/rtplive/R11_305/playlist.m3u8'
+const GIS_PREVIEW_STREAM_URL = 'https://gcalic.v.myalicdn.com/gc/hswlf_1/index.m3u8?contentid=2820180516001'
 
 const authStore = useAuthStore()
 const mapEl = ref(null)
@@ -1654,7 +1654,7 @@ function teardownGisPage() {
 }
 
 onMounted(async () => {
-  loadCameraDevices()
+  void loadCameraDevices()
   const generation = ++mountGeneration
   pageAlive = true
   await nextTick()
@@ -1899,7 +1899,29 @@ onBeforeUnmount(() => {
             <pre>{{ clickedTiandituTile.cornersText }}</pre>
           </div>
         </div>
-        <el-empty v-if="!features.length" description="暂无地块，可开启手动圈地或 AI 圈地" />
+        <div v-if="!features.length" class="panel-empty" role="status">
+          <div class="panel-empty-mark" aria-hidden="true">
+            <svg viewBox="0 0 72 72" fill="none">
+              <rect x="8" y="8" width="56" height="56" rx="10" stroke="currentColor" stroke-opacity="0.22" stroke-dasharray="3 4" />
+              <path d="M22 48 L30 24 L44 28 L52 46 L38 52 Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" fill="currentColor" fill-opacity="0.08" />
+              <circle cx="30" cy="24" r="2.2" fill="currentColor" />
+              <circle cx="44" cy="28" r="2.2" fill="currentColor" />
+              <circle cx="52" cy="46" r="2.2" fill="currentColor" />
+              <circle cx="38" cy="52" r="2.2" fill="currentColor" />
+              <circle cx="22" cy="48" r="2.2" fill="currentColor" />
+            </svg>
+          </div>
+          <strong>暂无地块</strong>
+          <span>可开启手动圈地或 AI 圈地后，在地图上绘制并保存</span>
+          <div v-if="canWrite" class="panel-empty-actions">
+            <button type="button" class="panel-empty-chip" :class="{ active: manualDrawMode }" @click="toggleManualDraw">
+              手动圈地
+            </button>
+            <button type="button" class="panel-empty-chip" :class="{ active: aiDelineateMode && aiProvider === 'roboflow' }" @click="handleAiDelineateClick('roboflow')">
+              AI 圈地
+            </button>
+          </div>
+        </div>
         <div v-else class="feature-list">
           <div v-for="feature in features" :key="feature.id" class="feature-item" :class="{ active: activeFeatureId === feature.id }">
             <img class="feature-pin" :src="annotationPin" alt="" />
@@ -2765,8 +2787,79 @@ onBeforeUnmount(() => {
   transform: scale(1.06);
 }
 
-.feature-panel :deep(.el-empty__description p) {
-  color: #9bb0c8;
+.panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 220px;
+  margin: 4px 0 8px;
+  padding: 28px 16px;
+  text-align: center;
+  border: 1px dashed rgba(88, 198, 220, 0.28);
+  border-radius: 14px;
+  background:
+    linear-gradient(160deg, rgba(12, 36, 56, 0.55), rgba(8, 22, 38, 0.35)),
+    radial-gradient(circle at 50% 28%, rgba(56, 210, 230, 0.12), transparent 46%);
+}
+
+.panel-empty-mark {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 4px;
+  color: #6fe5e8;
+  filter: drop-shadow(0 0 12px rgba(70, 230, 236, 0.28));
+}
+
+.panel-empty-mark svg {
+  width: 64px;
+  height: 64px;
+}
+
+.panel-empty strong {
+  color: #e7f6ff;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
+.panel-empty > span {
+  max-width: 210px;
+  color: #8eafc2;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.panel-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.panel-empty-chip {
+  min-height: 30px;
+  padding: 0 12px;
+  color: #c9eef5;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(18, 52, 72, 0.72);
+  border: 1px solid rgba(88, 210, 228, 0.28);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.panel-empty-chip:hover,
+.panel-empty-chip.active {
+  color: #f2ffff;
+  border-color: rgba(98, 232, 236, 0.62);
+  background: rgba(24, 78, 98, 0.88);
+  box-shadow: 0 0 14px rgba(62, 214, 228, 0.22);
 }
 
 /* GIS workbench layout */

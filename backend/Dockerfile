@@ -6,7 +6,7 @@ RUN mvn -B -DskipTests package && cp target/weather-data-hub-*.jar /build/app.ja
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl ffmpeg
 COPY --from=build /build/app.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

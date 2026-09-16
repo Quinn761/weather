@@ -63,6 +63,7 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
       AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
       AI_MODEL: ${AI_MODEL:-deepseek-chat}
+      ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
       SAM2_CHECKPOINT: ${SAM2_CHECKPOINT:-}
       SAM2_CONFIG: ${SAM2_CONFIG:-configs/sam2.1/sam2.1_hiera_t.yaml}
       SAM2_DEVICE: ${SAM2_DEVICE:-cpu}
@@ -112,6 +113,12 @@ services:
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
       PYTHON_AGENT_URL: http://python-agent:8000
       SAM2_SERVICE_URL: ${SAM2_SERVICE_URL:-http://python-agent:8000}
+      CAMERA_CAPTURE_ENABLED: ${CAMERA_CAPTURE_ENABLED:-false}
+      CAMERA_CAPTURE_STREAM_URL: ${CAMERA_CAPTURE_STREAM_URL:-}
+      CAMERA_CAPTURE_STORAGE_PATH: /data/camera-snapshots
+      FFMPEG_COMMAND: ffmpeg
+    volumes:
+      - weatherhub-camera-snapshots:/data/camera-snapshots
     expose:
       - "8080"
     ports:
@@ -137,3 +144,4 @@ services:
 volumes:
   weatherhub-mysql:
   weatherhub-postgis:
+  weatherhub-camera-snapshots:

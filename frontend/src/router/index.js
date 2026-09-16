@@ -61,6 +61,15 @@ const router = createRouter({
           component: () => import('@/views/CameraListView.vue'),
         },
         {
+          path: 'cameras/:id',
+          name: 'camera-detail',
+          meta: {
+            title: '摄像头详情',
+            permission: 'camera:read',
+          },
+          component: () => import('@/views/CameraDetailView.vue'),
+        },
+        {
           path: 'kb',
           name: 'kb',
           meta: { title: '知识库', permission: 'kb:read' },

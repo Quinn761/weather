@@ -1,64 +1,32 @@
 import { ref } from 'vue'
+import {
+  createCameraDevice,
+  deleteCameraDevice,
+  listCameraDevices,
+  updateCameraDevice as updateCameraDeviceRequest,
+} from '@/api/camera'
 
-const STORAGE_KEY = 'wh_camera_devices'
-
-const defaultDevices = [
-  {
-    id: 'ezviz-live-01',
-    name: '海康测试摄像头',
-    brand: '海康',
-    serialNumber: '',
-    verificationCode: '',
-    longitude: null,
-    latitude: null,
-    status: 'ONLINE',
-  },
-]
-
+// Device data is shared through the protected backend API, never localStorage.
 export const cameraDevices = ref([])
 
-function normalize(device) {
-  return {
-    id: device.id || crypto.randomUUID(),
-    name: String(device.name || '').trim(),
-    brand: '海康',
-    serialNumber: String(device.serialNumber || '').trim(),
-    verificationCode: String(device.verificationCode || '').trim(),
-    longitude: Number.isFinite(Number(device.longitude)) ? Number(device.longitude) : null,
-    latitude: Number.isFinite(Number(device.latitude)) ? Number(device.latitude) : null,
-    status: device.status === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
-  }
-}
-
-export function loadCameraDevices() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-    cameraDevices.value = Array.isArray(saved) ? saved.map(normalize) : defaultDevices.map(normalize)
-  } catch {
-    cameraDevices.value = defaultDevices.map(normalize)
-  }
+export async function loadCameraDevices() {
+  cameraDevices.value = await listCameraDevices()
   return cameraDevices.value
 }
 
-export function saveCameraDevices(devices) {
-  cameraDevices.value = devices.map(normalize)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cameraDevices.value))
+export async function addCameraDevice(device) {
+  const created = await createCameraDevice(device)
+  cameraDevices.value = [created, ...cameraDevices.value]
+  return created
 }
 
-export function addCameraDevice(device) {
-  saveCameraDevices([...cameraDevices.value, normalize(device)])
+export async function updateCameraDevice(id, device) {
+  const updated = await updateCameraDeviceRequest(id, device)
+  cameraDevices.value = cameraDevices.value.map((item) => (item.id === id ? updated : item))
+  return updated
 }
 
-export function updateCameraDevice(id, device) {
-  saveCameraDevices(cameraDevices.value.map((item) => (item.id === id ? normalize({ ...item, ...device, id }) : item)))
+export async function removeCameraDevice(id) {
+  await deleteCameraDevice(id)
+  cameraDevices.value = cameraDevices.value.filter((item) => item.id !== id)
 }
-
-export function removeCameraDevice(id) {
-  saveCameraDevices(cameraDevices.value.filter((item) => item.id !== id))
-}
-
-loadCameraDevices()
-
-window.addEventListener('storage', (event) => {
-  if (event.key === STORAGE_KEY) loadCameraDevices()
-})

@@ -52,6 +52,13 @@ weatherhub:
     timeout-seconds: ${AI_TIMEOUT_SECONDS:90}
     max-tool-rounds: ${AI_MAX_TOOL_ROUNDS:6}
     python-agent-url: ${PYTHON_AGENT_URL:}
+  camera:
+    capture:
+      enabled: ${CAMERA_CAPTURE_ENABLED:true}
+      stream-url: ${CAMERA_CAPTURE_STREAM_URL:https://gcalic.v.myalicdn.com/gc/hswlf_1/index.m3u8?contentid=2820180516001}
+      storage-path: ${CAMERA_CAPTURE_STORAGE_PATH:data/camera-snapshots}
+      ffmpeg-command: ${FFMPEG_COMMAND:ffmpeg}
+      timeout-seconds: ${CAMERA_CAPTURE_TIMEOUT_SECONDS:45}
 
 mybatis-plus:
   configuration:

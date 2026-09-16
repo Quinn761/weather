@@ -295,7 +295,7 @@ body {
 }
 
 .content {
-  padding: 20px 24px 32px;
+  padding: 20px 24px 10px;
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -309,6 +309,11 @@ body {
   padding: 10px 14px 4px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.page-camera-detail .content {
+  display: flex;
   overflow: hidden;
 }
 
@@ -578,5 +583,9 @@ body {
 
   .page-gis .content {
     padding: 10px 12px 6px;
+  }
+
+  .page-camera-detail .content {
+    overflow: auto;
   }
 }

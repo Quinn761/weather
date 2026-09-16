@@ -1,19 +1,23 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Edit, Plus, VideoCamera } from '@element-plus/icons-vue'
+import { Delete, Edit, Plus, VideoCamera, View } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useAuthStore } from '@/stores/auth'
 import {
   addCameraDevice,
   cameraDevices,
+  loadCameraDevices,
   removeCameraDevice,
   updateCameraDevice,
 } from '@/stores/cameraDevices'
 
 const authStore = useAuthStore()
-const canWrite = computed(() => authStore.hasPermission('gis:write'))
+const router = useRouter()
+const canWrite = computed(() => authStore.hasPermission('camera:write'))
+const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref(null)
 const mapEl = ref(null)
@@ -48,6 +52,10 @@ function openEdit(camera) {
   form.latitude = camera.latitude
   form.status = camera.status
   dialogVisible.value = true
+}
+
+function openDetail(camera) {
+  router.push({ name: 'camera-detail', params: { id: camera.id } })
 }
 
 function destroyCoordinateMap() {
@@ -95,8 +103,8 @@ function syncCoordinateMarker() {
 
 onBeforeUnmount(destroyCoordinateMap)
 
-function save() {
-  if (!form.name.trim() || !form.serialNumber.trim() || !form.verificationCode.trim()) {
+async function save() {
+  if (!form.name.trim() || !form.serialNumber.trim() || (!editingId.value && !form.verificationCode.trim())) {
     ElMessage.warning('请填写摄像头名称、序列号和验证码')
     return
   }
@@ -107,17 +115,25 @@ function save() {
     serialNumber: form.serialNumber.trim(),
     verificationCode: form.verificationCode.trim(),
   }
-  if (editingId.value) updateCameraDevice(editingId.value, payload)
-  else addCameraDevice(payload)
+  if (editingId.value) await updateCameraDevice(editingId.value, payload)
+  else await addCameraDevice(payload)
   dialogVisible.value = false
   ElMessage.success(editingId.value ? '摄像头配置已更新' : '摄像头已添加')
 }
 
 async function remove(camera) {
   await ElMessageBox.confirm(`确认删除“${camera.name}”吗？`, '删除摄像头', { type: 'warning' })
-  removeCameraDevice(camera.id)
+  await removeCameraDevice(camera.id)
   ElMessage.success('摄像头已删除')
 }
+onMounted(async () => {
+  loading.value = true
+  try {
+    await loadCameraDevices()
+  } finally {
+    loading.value = false
+  }
+})
 </script>
 
 <template>
@@ -131,7 +147,7 @@ async function remove(camera) {
       <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">新增摄像头</el-button>
     </section>
 
-    <el-card shadow="never" class="panel">
+    <el-card v-loading="loading" shadow="never" class="panel">
       <div class="table-scroll">
         <el-table :data="cameraDevices" empty-text="暂无摄像头，请先新增配置">
           <el-table-column label="设备名称" min-width="180">
@@ -145,16 +161,17 @@ async function remove(camera) {
             <template #default="{ row }">{{ Number.isFinite(row.longitude) ? `${row.longitude.toFixed(5)}, ${row.latitude.toFixed(5)}` : '未选择' }}</template>
           </el-table-column>
           <el-table-column label="验证码" width="120">
-            <template #default="{ row }">{{ row.verificationCode ? '已配置' : '未配置' }}</template>
+            <template #default="{ row }">{{ row.verificationConfigured ? '已配置' : '未配置' }}</template>
           </el-table-column>
           <el-table-column label="状态" width="100">
             <template #default="{ row }"><el-tag :type="row.status === 'ONLINE' ? 'success' : 'info'">{{ row.status === 'ONLINE' ? '在线' : '离线' }}</el-tag></template>
           </el-table-column>
-          <el-table-column v-if="canWrite" label="操作" width="188" fixed="right">
+          <el-table-column label="操作" :width="canWrite ? 240 : 92" fixed="right">
             <template #default="{ row }">
               <div class="row-actions">
-                <el-button text type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
-                <el-button text type="danger" :icon="Delete" @click="remove(row)">删除</el-button>
+                <el-button text type="primary" :icon="View" @click="openDetail(row)">详情</el-button>
+                <el-button v-if="canWrite" text type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
+                <el-button v-if="canWrite" text type="danger" :icon="Delete" @click="remove(row)">删除</el-button>
               </div>
             </template>
           </el-table-column>
@@ -183,8 +200,8 @@ async function remove(camera) {
         <el-form-item label="设备序列号" required>
           <el-input v-model="form.serialNumber" maxlength="80" placeholder="请输入海康设备序列号" />
         </el-form-item>
-        <el-form-item label="验证码" required>
-          <el-input v-model="form.verificationCode" maxlength="80" show-password placeholder="请输入设备验证码" />
+        <el-form-item label="验证码" :required="!editingId">
+          <el-input v-model="form.verificationCode" maxlength="80" show-password :placeholder="editingId ? '留空则保留当前验证码' : '请输入设备验证码'" />
         </el-form-item>
         <el-form-item label="地图位置">
           <div class="coordinate-inputs">
