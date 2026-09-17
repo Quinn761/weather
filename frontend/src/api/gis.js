@@ -54,7 +54,10 @@ export async function runRoboflowWorkflow({ imageBase64, corners }) {
   })
   const text = await response.text()
   if (!response.ok) {
-    throw new Error(describeRoboflowError(response.status, text))
+    throw new Error(describeRoboflowError(response.status, text, {
+      cfRay: response.headers.get('x-roboflow-cf-ray'),
+      upstreamStatus: response.headers.get('x-roboflow-upstream-status'),
+    }))
   }
   try {
     return JSON.parse(text)
@@ -83,19 +86,24 @@ function workflowFetchUrl() {
   return raw
 }
 
-function describeRoboflowError(status, text) {
+function describeRoboflowError(status, text, diagnostics = {}) {
+  const trace = [
+    diagnostics.upstreamStatus ? `上游状态 ${diagnostics.upstreamStatus}` : '',
+    diagnostics.cfRay ? `CF-Ray: ${diagnostics.cfRay}` : '',
+  ].filter(Boolean).join('；')
+  const traceSuffix = trace ? `（${trace}）` : ''
   if (text?.startsWith('Roboflow 代理')) return text
   try {
     const json = JSON.parse(text)
-    return json.message || json.error || `HTTP ${status}`
+    return `${json.message || json.error || `HTTP ${status}`}${traceSuffix}`
   } catch {
     if (/<!doctype html|<html/i.test(text || '')) {
       if (status === 403 && /cloudflare|you have been blocked/i.test(text)) {
-        return 'Roboflow 的 Cloudflare 安全策略拦截了服务器请求（HTTP 403）。请联系 Roboflow 支持，核查服务器出口 IP 和拦截记录。'
+        return `Roboflow 的 Cloudflare 安全策略拦截了服务器请求（HTTP 403）${traceSuffix}。请将 CF-Ray 和报错时间提供给 Roboflow 支持，以核查具体拦截规则。`
       }
-      return `Roboflow 返回了网页而不是识别结果（HTTP ${status}）`
+      return `Roboflow 返回了网页而不是识别结果（HTTP ${status}）${traceSuffix}`
     }
-    return `HTTP ${status}`
+    return `HTTP ${status}${traceSuffix}`
   }
 }
 
