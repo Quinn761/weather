@@ -35,3 +35,11 @@ export function listCameraMonitoringRecords(id, current = 1, size = 10) {
 export function getCameraMonitoringRecord(id) {
   return http.get(`/cameras/monitoring-records/${id}`)
 }
+
+export function listActiveCameraAlerts() {
+  return http.get('/cameras/alerts')
+}
+
+export function listCameraAlerts(id) {
+  return http.get(`/cameras/${id}/alerts`)
+}

@@ -5,7 +5,7 @@ import Hls from 'hls.js'
 import { ArrowLeft, CircleCloseFilled, DataAnalysis, Picture, RefreshRight, VideoCamera } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { cameraDevices, loadCameraDevices } from '@/stores/cameraDevices'
-import { getCameraMonitoringRecord, listCameraMonitoringRecords, listCameraSnapshots } from '@/api/camera'
+import { getCameraMonitoringRecord, listCameraAlerts, listCameraMonitoringRecords, listCameraSnapshots } from '@/api/camera'
 import classificationAtmosphere from '@/assets/monitoring/classification-atmosphere.png'
 import metricWeather from '@/assets/monitoring/metric-weather.png'
 import metricVisibility from '@/assets/monitoring/metric-visibility.png'
@@ -156,6 +156,17 @@ async function loadMonitoringRecords(current = monitoringCurrent.value) {
   if (selectedMonitoringId.value) await selectMonitoring(selectedMonitoringId.value)
 }
 
+async function loadAlerts() {
+  if (!camera.value) return
+  const records = await listCameraAlerts(camera.value.id)
+  warnings.value = (records || []).map((item) => ({
+    id: item.id,
+    level: item.status === 'RECOVERED' ? '已恢复' : '一般预警',
+    content: item.content,
+    occurredAt: formatAnalyzedAt(item.lastDetectedAt),
+  }))
+}
+
 function onMonitoringPageChange(current) {
   loadMonitoringRecords(current)
 }
@@ -222,6 +233,7 @@ async function initialize() {
     }
     await loadSnapshots()
     await loadMonitoringRecords()
+    await loadAlerts()
     await playStream()
   } finally {
     loading.value = false

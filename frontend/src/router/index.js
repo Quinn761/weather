@@ -70,6 +70,12 @@ const router = createRouter({
           component: () => import('@/views/CameraDetailView.vue'),
         },
         {
+          path: 'official-alerts',
+          name: 'official-alerts',
+          meta: { title: '官方灾害预警', permission: 'official-alert:read' },
+          component: () => import('@/views/OfficialAlertsView.vue'),
+        },
+        {
           path: 'kb',
           name: 'kb',
           meta: { title: '知识库', permission: 'kb:read' },

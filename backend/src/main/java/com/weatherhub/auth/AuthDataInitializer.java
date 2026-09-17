@@ -52,6 +52,7 @@ public class AuthDataInitializer implements ApplicationRunner { // 声明 AuthDa
         Long menuMenuId = ensureMenu("menu:read", 0L, "菜单管理", "/menus", "Menu", 40, Menu.TYPE_MENU); // 菜单管理页面
         Long gisMenuId = ensureMenu("gis:read", 0L, "GIS 标注", "/gis", "Location", 50, Menu.TYPE_MENU);
         Long cameraMenuId = ensureMenu("camera:read", 0L, "摄像头列表", "/cameras", "VideoCamera", 52, Menu.TYPE_MENU);
+        ensureMenu("official-alert:read", 0L, "官方灾害预警", "/official-alerts", "Warning", 54, Menu.TYPE_MENU);
         Long kbMenuId = ensureMenu("kb:read", 0L, "知识库", "/kb", "Collection", 55, Menu.TYPE_MENU);
         ensureMenu("ai:chat", 0L, "Agent 工作台", "/ai", "ChatDotRound", 60, Menu.TYPE_MENU);
         ensureMenu("user:write", userMenuId, "编辑用户", null, null, 21, Menu.TYPE_BUTTON); // 用户写权限

@@ -26,3 +26,6 @@ __pycache__/
 .matplotlib/
 python-*.exe
 python-agent/checkpoints/
+
+# Local camera-data export/archive; operational data is not source code.
+.camera-sync/

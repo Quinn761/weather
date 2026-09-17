@@ -9,6 +9,8 @@ services:
     volumes:
       - weatherhub-mysql:/var/lib/mysql
       - ./deploy/mysql/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3306:3306"
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
@@ -64,7 +66,9 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
       AI_MODEL: ${AI_MODEL:-deepseek-chat}
       ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
-      SAM2_CHECKPOINT: ${SAM2_CHECKPOINT:-}
+      # The bundled tiny checkpoint is mounted at /models by default.
+      # Do not override the image default with an empty value when .env omits it.
+      SAM2_CHECKPOINT: ${SAM2_CHECKPOINT:-/models/sam2.1_hiera_tiny.pt}
       SAM2_CONFIG: ${SAM2_CONFIG:-configs/sam2.1/sam2.1_hiera_t.yaml}
       SAM2_DEVICE: ${SAM2_DEVICE:-cpu}
     volumes:
@@ -117,6 +121,8 @@ services:
       CAMERA_CAPTURE_STREAM_URL: ${CAMERA_CAPTURE_STREAM_URL:-}
       CAMERA_CAPTURE_STORAGE_PATH: /data/camera-snapshots
       FFMPEG_COMMAND: ffmpeg
+      QWEATHER_API_KEY: ${QWEATHER_API_KEY:-}
+      QWEATHER_API_HOST: ${QWEATHER_API_HOST:-https://devapi.qweather.com}
     volumes:
       - weatherhub-camera-snapshots:/data/camera-snapshots
     expose:
@@ -135,6 +141,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     restart: unless-stopped
+    environment:
+      # The Nginx entrypoint writes this value to /env.js at container start.
+      # Keep the API key outside the image so replacing it only needs a restart.
+      ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
     depends_on:
       backend:
         condition: service_healthy

@@ -59,6 +59,10 @@ weatherhub:
       storage-path: ${CAMERA_CAPTURE_STORAGE_PATH:data/camera-snapshots}
       ffmpeg-command: ${FFMPEG_COMMAND:ffmpeg}
       timeout-seconds: ${CAMERA_CAPTURE_TIMEOUT_SECONDS:45}
+  qweather:
+    api-key: ${QWEATHER_API_KEY:}
+    api-host: ${QWEATHER_API_HOST:https://devapi.qweather.com}
+    cache-minutes: ${QWEATHER_CACHE_MINUTES:60}
 
 mybatis-plus:
   configuration:

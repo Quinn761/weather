@@ -128,6 +128,21 @@ spec:
                 configMapKeyRef:
                   name: weather-config
                   key: PYTHON_AGENT_URL
+            - name: CAMERA_CAPTURE_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: CAMERA_CAPTURE_ENABLED
+            - name: CAMERA_CAPTURE_STREAM_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: CAMERA_CAPTURE_STREAM_URL
+            - name: CAMERA_CAPTURE_STORAGE_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: CAMERA_CAPTURE_STORAGE_PATH
             - name: AI_API_KEY
               valueFrom:
                 secretKeyRef:

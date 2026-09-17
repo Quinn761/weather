@@ -3,6 +3,7 @@ package com.weatherhub.camera;
 import com.weatherhub.camera.dto.CameraDeviceVO;
 import com.weatherhub.camera.dto.CameraSnapshotVO;
 import com.weatherhub.camera.dto.CameraMonitoringRecordVO;
+import com.weatherhub.camera.dto.CameraAlertVO;
 import com.weatherhub.camera.dto.SaveCameraDeviceRequest;
 import com.weatherhub.common.ApiResponse;
 import com.weatherhub.common.PageResult;
@@ -31,6 +32,7 @@ public class CameraDeviceController {
     private final CameraDeviceService cameraDeviceService;
     private final CameraSnapshotService cameraSnapshotService;
     private final CameraMonitoringService cameraMonitoringService;
+    private final CameraAlertService cameraAlertService;
     private final RoboflowMonitoringClient roboflowMonitoringClient;
 
     @GetMapping
@@ -70,6 +72,16 @@ public class CameraDeviceController {
     @GetMapping("/monitoring-records/{recordId}")
     public ApiResponse<CameraMonitoringRecordVO> monitoringRecord(@PathVariable Long recordId) {
         return ApiResponse.ok(cameraMonitoringService.get(recordId));
+    }
+
+    @GetMapping("/alerts")
+    public ApiResponse<List<CameraAlertVO>> activeAlerts() {
+        return ApiResponse.ok(cameraAlertService.activeAlerts());
+    }
+
+    @GetMapping("/{id}/alerts")
+    public ApiResponse<List<CameraAlertVO>> cameraAlerts(@PathVariable Long id) {
+        return ApiResponse.ok(cameraAlertService.byCamera(id));
     }
 
     @PostMapping

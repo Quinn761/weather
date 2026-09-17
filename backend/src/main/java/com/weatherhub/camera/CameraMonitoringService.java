@@ -19,6 +19,7 @@ public class CameraMonitoringService {
     private final CameraSnapshotService snapshotService;
     private final CameraMonitoringRecordMapper recordMapper;
     private final RoboflowMonitoringClient monitoringClient;
+    private final CameraAlertService cameraAlertService;
 
     public CameraMonitoringRecord analyzeAndSave(CameraSnapshot snapshot) {
         Map<String, Object> response = monitoringClient.analyze(snapshotService.file(snapshot.getId()));
@@ -37,6 +38,7 @@ public class CameraMonitoringService {
         record.setAnalyzedAt(LocalDateTime.now());
         record.setCreatedAt(record.getAnalyzedAt());
         recordMapper.insert(record);
+        cameraAlertService.evaluate(record);
         return record;
     }
 

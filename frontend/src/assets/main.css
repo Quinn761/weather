@@ -317,6 +317,20 @@ body {
   overflow: hidden;
 }
 
+.page-official-alerts .content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.page-official-alerts .content > * {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
 .page {
   display: flex;
   flex-direction: column;

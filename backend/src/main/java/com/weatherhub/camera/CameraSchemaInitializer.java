@@ -62,5 +62,26 @@ public class CameraSchemaInitializer implements ApplicationRunner {
                     KEY idx_camera_monitoring_snapshot (snapshot_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """);
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS camera_alert (
+                    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                    camera_id BIGINT NOT NULL,
+                    monitoring_record_id BIGINT NOT NULL,
+                    type VARCHAR(64) NOT NULL,
+                    level VARCHAR(16) NOT NULL,
+                    status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+                    title VARCHAR(160) NOT NULL,
+                    content TEXT NOT NULL,
+                    confidence DECIMAL(5,4) NULL,
+                    normal_count INT NOT NULL DEFAULT 0,
+                    first_detected_at DATETIME(6) NOT NULL,
+                    last_detected_at DATETIME(6) NOT NULL,
+                    recovered_at DATETIME(6) NULL,
+                    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+                    KEY idx_camera_alert_active (camera_id, type, status),
+                    KEY idx_camera_alert_time (last_detected_at DESC)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """);
     }
 }

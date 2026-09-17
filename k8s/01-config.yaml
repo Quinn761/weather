@@ -19,6 +19,11 @@ data:
   AI_BASE_URL: "https://api.deepseek.com"
   AI_MODEL: "deepseek-chat"
   PYTHON_AGENT_URL: "http://python-agent:8000"
+  # Capture every ONLINE camera at minute 0 and 30. The backend stores images
+  # on the camera-snapshots PVC and immediately queues AI monitoring.
+  CAMERA_CAPTURE_ENABLED: "true"
+  CAMERA_CAPTURE_STREAM_URL: "https://gcalic.v.myalicdn.com/gc/hswlf_1/index.m3u8?contentid=2820180516001"
+  CAMERA_CAPTURE_STORAGE_PATH: "/data/camera-snapshots"
 ---
 apiVersion: v1
 kind: Secret
