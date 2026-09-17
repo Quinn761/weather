@@ -149,6 +149,18 @@ spec:
                   name: weather-secret
                   key: AI_API_KEY
                   optional: true
+            - name: QWEATHER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: QWEATHER_API_KEY
+                  optional: true
+            - name: QWEATHER_API_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: QWEATHER_API_HOST
+                  optional: true
           ports:
             - containerPort: 8080
               name: http

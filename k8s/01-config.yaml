@@ -35,4 +35,5 @@ stringData:
   MYSQL_ROOT_PASSWORD: WeatherHub2026Mysql
   JWT_SECRET: WeatherHubJwtSecret2026ChangeMeToLongRandomString
   POSTGIS_PASSWORD: WeatherHub2026Postgis
-  # AI_API_KEY、ROBOFLOW_API_KEY 不要写在仓库里。部署时从服务器文件或 GitHub Secret 写入。
+  # AI_API_KEY、ROBOFLOW_API_KEY、QWEATHER_API_KEY、QWEATHER_API_HOST 不要写在仓库里。
+  # 部署时从服务器文件或 GitHub Secret 写入。
