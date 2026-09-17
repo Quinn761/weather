@@ -279,6 +279,10 @@ jobs:
 
             kubectl apply -f "$K8SDIR/03-backend.yaml"
             kubectl apply -f "$K8SDIR/04-frontend.yaml"
+            # Secret-backed environment variables are captured only when a Pod
+            # starts. A manual rerun can use the same image tag, so force a new
+            # Pod even when the Deployment template itself is otherwise unchanged.
+            kubectl -n weather rollout restart deploy/backend deploy/frontend
 
             # SAM is deployed independently because its model image is large.
             if [ -z "${SAM2_SERVICE_URL:-}" ] && ! kubectl -n weather get service python-agent >/dev/null 2>&1; then
