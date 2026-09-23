@@ -9,7 +9,7 @@ import java.util.List;
 public class AiToolConfig {
 
     @Bean
-    public McpToolCatalog mcpToolCatalog(List<AiTool> tools) {
-        return new McpToolCatalog(tools);
+    public McpToolCatalog mcpToolCatalog(List<AiTool> tools, AgentAuthorizationService authorizationService) {
+        return new McpToolCatalog(tools, authorizationService);
     }
 }

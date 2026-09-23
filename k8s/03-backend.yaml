@@ -123,6 +123,26 @@ spec:
                 configMapKeyRef:
                   name: weather-config
                   key: AI_MODEL
+            - name: JEV_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: JEV_ENABLED
+            - name: JEV_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: JEV_BASE_URL
+            - name: JEV_TIMEOUT_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: JEV_TIMEOUT_SECONDS
+            - name: JEV_MINIMUM_CONFIDENCE
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: JEV_MINIMUM_CONFIDENCE
             - name: PYTHON_AGENT_URL
               valueFrom:
                 configMapKeyRef:
@@ -148,6 +168,12 @@ spec:
                 secretKeyRef:
                   name: weather-secret
                   key: AI_API_KEY
+                  optional: true
+            - name: JEV_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: JEV_API_KEY
                   optional: true
             - name: QWEATHER_API_KEY
               valueFrom:

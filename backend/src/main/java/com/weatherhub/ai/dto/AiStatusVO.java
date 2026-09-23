@@ -10,6 +10,7 @@ public record AiStatusVO(
         List<String> tools,
         List<String> pipeline,
         List<String> crew,
-        boolean localFallback
+        boolean localFallback,
+        boolean jevConfigured
 ) {
 }

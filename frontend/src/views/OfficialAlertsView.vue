@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { getOfficialAlerts, getTropicalCyclones } from '@/api/officialAlerts'
+import stormListBg from '@/assets/tropical/storm-list-bg.png'
 
 // 省级边界经离线简化，保留交互精度的同时降低缩放时的矢量重绘开销。
 const CHINA_BOUNDARY_URL = `${import.meta.env.BASE_URL}china-100000-optimized.json`
@@ -774,9 +775,12 @@ onBeforeUnmount(() => {
             <span>{{ radarTimeLabel }}</span>
           </div>
         </div>
-        <aside class="storm-list-panel">
+        <aside class="storm-list-panel" :style="{ '--storm-list-bg': `url(${stormListBg})` }">
           <header class="storm-panel-head">
-            <p>活跃台风</p>
+            <div>
+              <p>活跃台风</p>
+              <small>西北太平洋态势</small>
+            </div>
             <span>{{ tropicalStorms.length }}</span>
           </header>
           <button
@@ -793,8 +797,14 @@ onBeforeUnmount(() => {
             </div>
             <small>{{ storm.windSpeed || '—' }} m/s</small>
           </button>
-          <span v-if="!tropicalOverview?.configured" class="empty-state">台风接口未配置</span>
-          <span v-else-if="!tropicalStorms.length" class="empty-state">当前无活跃台风</span>
+          <div v-if="!tropicalOverview?.configured" class="empty-state">
+            <strong>接口未配置</strong>
+            <span>请配置和风台风数据源后刷新</span>
+          </div>
+          <div v-else-if="!tropicalStorms.length" class="empty-state">
+            <strong>暂无活跃台风</strong>
+            <span>当前西北太平洋无活跃热带气旋</span>
+          </div>
         </aside>
         <aside v-if="selectedTropicalStorm" class="storm-detail-panel">
           <p>台风实况</p>
@@ -954,45 +964,84 @@ onBeforeUnmount(() => {
 .storm-detail-panel {
   position: absolute;
   z-index: 4;
+  overflow: hidden;
   border: 1px solid #ffffff1f;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #061018d4;
   backdrop-filter: blur(10px);
   box-shadow: 0 14px 36px #00000066;
 }
-.storm-list-panel::before, .storm-detail-panel::before { content: ''; position: absolute; top: 0; right: 18px; left: 18px; height: 1px; background: linear-gradient(90deg, transparent, #6de7ff99, transparent); }
+.storm-list-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(180deg, #061018f2 0%, #061018c4 38%, #061018a8 100%),
+    var(--storm-list-bg) center / cover no-repeat;
+  pointer-events: none;
+}
+.storm-list-panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 18px;
+  left: 18px;
+  z-index: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #6de7ff99, transparent);
+  pointer-events: none;
+}
+.storm-detail-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 18px;
+  left: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #6de7ff99, transparent);
+}
 .storm-list-panel {
   top: 72px;
   bottom: 26px;
   left: 26px;
-  width: 268px;
+  width: 278px;
   display: grid;
   align-content: start;
-  gap: 8px;
-  padding: 14px;
+  gap: 10px;
+  padding: 16px;
   overflow: auto;
 }
+.storm-list-panel > * { position: relative; z-index: 1; }
 .storm-panel-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 4px;
+  gap: 12px;
+  margin-bottom: 2px;
 }
+.storm-panel-head > div { display: grid; gap: 4px; }
 .storm-panel-head p,
 .storm-detail-panel > p {
   margin: 0;
-  color: #9ec3d6;
-  font-size: 10px;
+  color: #b7d7e8;
+  font-size: 11px;
   letter-spacing: .14em;
   text-transform: uppercase;
 }
+.storm-panel-head small {
+  color: #7f9fb4;
+  font-size: 10px;
+  letter-spacing: .04em;
+}
 .storm-panel-head span {
-  min-width: 22px;
-  padding: 2px 7px;
+  min-width: 28px;
+  padding: 4px 8px;
+  border: 1px solid #ff9b4555;
   border-radius: 999px;
-  background: #ff7a3d33;
+  background: #ff7a3d22;
   color: #ffc08a;
-  font: 700 11px/1.4 ui-monospace, monospace;
+  font: 700 12px/1.3 ui-monospace, monospace;
   text-align: center;
 }
 .storm-list-panel button {
@@ -1000,19 +1049,19 @@ onBeforeUnmount(() => {
   grid-template-columns: 14px 1fr auto;
   align-items: center;
   gap: 10px;
-  padding: 11px 10px;
+  padding: 12px 11px;
   border: 1px solid #ffffff14;
-  border-radius: 8px;
-  background: #0a1c28a8;
+  border-radius: 9px;
+  background: #0a1c28b8;
   color: #e8f6ff;
   cursor: pointer;
   text-align: left;
-  transition: border-color .15s ease, background .15s ease;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
 }
 .storm-list-panel button:hover { border-color: #5ad8f080; background: #123247e8; transform: translateX(2px); }
 .storm-list-panel button.active {
   border-color: #ff9b4599;
-  background: linear-gradient(100deg, #3a1f0ed4, #1a2834d0);
+  background: linear-gradient(100deg, #3a1f0ee0, #1a2834d8);
   box-shadow: inset 3px 0 #ff803d;
 }
 .storm-meta { display: grid; gap: 3px; min-width: 0; }
@@ -1027,7 +1076,26 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 10px #ff7a3d99;
 }
 .storm-list-panel button.active .storm-dot { background: #ffd27a; box-shadow: 0 0 12px #ffb24a; }
-.empty-state { padding: 18px 4px; color: #8eafc2; font-size: 12px; }
+.empty-state {
+  display: grid;
+  gap: 6px;
+  margin-top: 18px;
+  padding: 18px 14px;
+  border: 1px dashed #4d7f9655;
+  border-radius: 10px;
+  background: #07152199;
+  text-align: center;
+}
+.empty-state strong {
+  color: #d7ebf5;
+  font-size: 13px;
+  font-weight: 600;
+}
+.empty-state span {
+  color: #8eafc2;
+  font-size: 11px;
+  line-height: 1.5;
+}
 .storm-detail-panel {
   top: 72px;
   right: 26px;

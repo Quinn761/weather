@@ -115,6 +115,12 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
       AI_MODEL: ${AI_MODEL:-deepseek-chat}
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
+      JEV_ENABLED: ${JEV_ENABLED:-false}
+      JEV_API_KEY: ${JEV_API_KEY:-}
+      JEV_BASE_URL: ${JEV_BASE_URL:-https://api.typesafe.ai}
+      JEV_MODEL: ${JEV_MODEL:-jev-latest}
+      JEV_TIMEOUT_SECONDS: ${JEV_TIMEOUT_SECONDS:-8}
+      JEV_MINIMUM_CONFIDENCE: ${JEV_MINIMUM_CONFIDENCE:-0.75}
       PYTHON_AGENT_URL: http://python-agent:8000
       SAM2_SERVICE_URL: ${SAM2_SERVICE_URL:-http://python-agent:8000}
       CAMERA_CAPTURE_ENABLED: ${CAMERA_CAPTURE_ENABLED:-false}

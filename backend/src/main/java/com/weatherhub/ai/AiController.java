@@ -17,6 +17,7 @@ import com.weatherhub.ai.store.AiSession;
 import com.weatherhub.ai.tool.McpToolCatalog;
 import com.weatherhub.common.ApiResponse;
 import com.weatherhub.config.AiProperties;
+import com.weatherhub.config.JevProperties;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -49,6 +50,7 @@ public class AiController {
     private final AiProperties properties;
     private final RagService ragService;
     private final McpToolCatalog catalog;
+    private final JevProperties jevProperties;
 
     public AiController(
             AgentOrchestrator orchestrator,
@@ -57,7 +59,8 @@ public class AiController {
             LlmClient llmClient,
             AiProperties properties,
             RagService ragService,
-            McpToolCatalog catalog
+            McpToolCatalog catalog,
+            JevProperties jevProperties
     ) {
         this.orchestrator = orchestrator;
         this.runtime = runtime;
@@ -66,6 +69,7 @@ public class AiController {
         this.properties = properties;
         this.ragService = ragService;
         this.catalog = catalog;
+        this.jevProperties = jevProperties;
     }
 
     @GetMapping("/status")
@@ -78,7 +82,8 @@ public class AiController {
                 catalog.names(),
                 PIPELINE,
                 CREW,
-                true
+                true,
+                jevProperties.configured()
         ));
     }
 

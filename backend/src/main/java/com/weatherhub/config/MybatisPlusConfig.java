@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean; // 导入 org.springframewor
 import org.springframework.context.annotation.Configuration; // 导入 org.springframework.context.annotation.Configuration 类型或包供本文件使用
 
 @Configuration // 声明这是 Spring 配置类
-@MapperScan({"com.weatherhub.user", "com.weatherhub.rbac", "com.weatherhub.ai.store", "com.weatherhub.ai.kb", "com.weatherhub.camera"}) // 只扫描 MySQL 上的 Mapper，GIS 走独立的 PostGIS 数据源
+@MapperScan({"com.weatherhub.user", "com.weatherhub.rbac", "com.weatherhub.ai.store", "com.weatherhub.ai.kb", "com.weatherhub.camera", "com.weatherhub.operations"}) // 只扫描 MySQL 上的 Mapper，GIS 走独立的 PostGIS 数据源
 public class MybatisPlusConfig { // 声明 MybatisPlusConfig 类
 
     @Bean // 声明该方法返回值注册为 Spring Bean

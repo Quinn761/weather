@@ -52,6 +52,13 @@ weatherhub:
     timeout-seconds: ${AI_TIMEOUT_SECONDS:90}
     max-tool-rounds: ${AI_MAX_TOOL_ROUNDS:6}
     python-agent-url: ${PYTHON_AGENT_URL:}
+  jev:
+    enabled: ${JEV_ENABLED:false}
+    api-key: ${JEV_API_KEY:}
+    base-url: ${JEV_BASE_URL:https://api.typesafe.ai}
+    model: ${JEV_MODEL:jev-latest}
+    timeout-seconds: ${JEV_TIMEOUT_SECONDS:8}
+    minimum-confidence: ${JEV_MINIMUM_CONFIDENCE:0.75}
   camera:
     capture:
       enabled: ${CAMERA_CAPTURE_ENABLED:true}

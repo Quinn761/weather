@@ -146,7 +146,7 @@ function onSizeChange(size) { // 定义 onSizeChange 方法的入口
               @keyup.enter="onSearch"
             />
             <el-button @click="onSearch">查询</el-button>
-            <el-button type="primary" @click="openCreate">新建用户</el-button>
+            <el-button class="cmd-btn" type="primary" @click="openCreate">新建用户</el-button>
           </div>
         </div>
       </template>
@@ -199,6 +199,9 @@ function onSizeChange(size) { // 定义 onSizeChange 方法的入口
       v-model="dialogVisible"
       :title="editingId ? '编辑用户' : '新建用户'"
       width="520px"
+      append-to-body
+      align-center
+      destroy-on-close
       @closed="resetForm"
     >
       <el-form label-position="top">
@@ -236,8 +239,8 @@ function onSizeChange(size) { // 定义 onSizeChange 方法的入口
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submit">保存</el-button>
+        <el-button class="cmd-btn-ghost" @click="dialogVisible = false">取消</el-button>
+        <el-button class="cmd-btn" type="primary" :loading="submitting" @click="submit">保存</el-button>
       </template>
     </el-dialog>
   </div>

@@ -2,6 +2,7 @@ package com.weatherhub.ai.tool;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,13 +13,15 @@ public class McpToolCatalog {
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final Map<String, AiTool> tools;
+    private final AgentAuthorizationService authorizationService;
 
-    public McpToolCatalog(List<AiTool> tools) {
+    public McpToolCatalog(List<AiTool> tools, AgentAuthorizationService authorizationService) {
         Map<String, AiTool> map = new LinkedHashMap<>();
         for (AiTool tool : tools) {
             map.put(tool.name(), tool);
         }
         this.tools = Map.copyOf(map);
+        this.authorizationService = authorizationService;
     }
 
     public List<String> names() {
@@ -50,14 +53,8 @@ public class McpToolCatalog {
         if (tool == null) {
             return "未知工具：" + name;
         }
-        String permission = switch (name) {
-            case "get_dashboard_overview" -> "dashboard:view";
-            case "list_gis_features" -> "gis:read";
-            default -> "";
-        };
-        if (!permission.isEmpty() && !ToolAccess.allowed(permission)) {
-            return "没有访问权限：" + permission + "。未读取该数据。";
-        }
+        ToolAuthorizationDecision decision = authorizationService.authorize(name, SecurityContextHolder.getContext().getAuthentication());
+        if (!decision.allowed()) return "工具被权限策略拒绝：" + decision.reason();
         JsonNode args = arguments == null || arguments.isNull() ? JSON.readTree("{}") : arguments;
         try {
             return tool.execute(args);

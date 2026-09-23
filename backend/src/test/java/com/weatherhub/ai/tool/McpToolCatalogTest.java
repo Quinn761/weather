@@ -35,12 +35,12 @@ class McpToolCatalogTest {
                 return "pong";
             }
         };
-        McpToolCatalog catalog = new McpToolCatalog(List.of(echo));
+        McpToolCatalog catalog = new McpToolCatalog(List.of(echo), new AgentAuthorizationService());
         assertEquals(List.of("echo"), catalog.names());
         assertTrue(catalog.openAiTools().getFirst().get("type").equals("function"));
-        assertEquals("pong", catalog.call("echo", "{}"));
+        assertTrue(catalog.call("echo", "{}").contains("权限策略拒绝"));
         JsonMapper json = JsonMapper.builder().build();
-        assertEquals("pong", catalog.call("echo", json.readTree("{}")));
+        assertTrue(catalog.call("echo", json.readTree("{}")).contains("权限策略拒绝"));
         assertTrue(catalog.call("missing", "{}").contains("未知工具"));
     }
 }

@@ -144,7 +144,7 @@ function clip(text) {
               @clear="load"
             />
             <el-button @click="load">查询</el-button>
-            <el-button v-if="canWrite" type="primary" @click="openCreate">新建文档</el-button>
+            <el-button v-if="canWrite" class="cmd-btn" type="primary" @click="openCreate">新建文档</el-button>
           </div>
         </div>
       </template>
@@ -184,7 +184,7 @@ function clip(text) {
               style="width: 280px"
               @keyup.enter="preview"
             />
-            <el-button type="primary" :loading="previewing" @click="preview">检索</el-button>
+            <el-button class="cmd-btn" type="primary" :loading="previewing" @click="preview">检索</el-button>
           </div>
         </div>
       </template>
@@ -200,6 +200,9 @@ function clip(text) {
       v-model="dialogVisible"
       :title="editingId ? '编辑文档' : '新建文档'"
       width="680px"
+      append-to-body
+      align-center
+      destroy-on-close
       @closed="resetForm"
     >
       <el-form label-position="top">
@@ -227,8 +230,8 @@ function clip(text) {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submit">保存</el-button>
+        <el-button class="cmd-btn-ghost" @click="dialogVisible = false">取消</el-button>
+        <el-button class="cmd-btn" type="primary" :loading="submitting" @click="submit">保存</el-button>
       </template>
     </el-dialog>
   </div>

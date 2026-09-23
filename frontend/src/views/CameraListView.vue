@@ -144,7 +144,7 @@ onMounted(async () => {
         <h2>摄像头列表</h2>
         <p class="hero-desc">维护 GIS 工作台中的海康设备名称、序列号、验证码与在线状态。</p>
       </div>
-      <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openCreate">新增摄像头</el-button>
+      <el-button v-if="canWrite" class="cmd-btn" type="primary" :icon="Plus" @click="openCreate">新增摄像头</el-button>
     </section>
 
     <el-card v-loading="loading" shadow="never" class="panel">
@@ -184,6 +184,7 @@ onMounted(async () => {
       class="camera-dialog"
       :title="editingId ? '编辑摄像头' : '新增摄像头'"
       width="560px"
+      append-to-body
       align-center
       destroy-on-close
       :close-on-click-modal="false"
@@ -237,8 +238,8 @@ onMounted(async () => {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="save">保存</el-button>
+        <el-button class="cmd-btn-ghost" @click="dialogVisible = false">取消</el-button>
+        <el-button class="cmd-btn" type="primary" @click="save">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -272,28 +273,15 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid #2c425c;
-  border-radius: 14px;
-  background: #101d2e;
 }
-.camera-dialog .el-dialog__header {
-  flex-shrink: 0;
-  margin-right: 0;
-  padding: 16px 20px 10px;
-}
-.camera-dialog .el-dialog__title { color: #e7f2ff; font-size: 16px; }
-.camera-dialog .el-dialog__headerbtn .el-dialog__close { color: #9db3cc; }
+
 .camera-dialog .el-dialog__body {
   flex: 1 1 auto;
   min-height: 0;
+  max-height: none;
   overflow: hidden;
-  padding: 8px 20px 4px;
 }
-.camera-dialog .el-dialog__footer {
-  flex-shrink: 0;
-  padding: 10px 20px 16px;
-  border-top: 1px solid #24384f;
-}
+
 .el-overlay-dialog:has(.camera-dialog) {
   overflow: hidden;
   display: flex;

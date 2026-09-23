@@ -14,4 +14,6 @@ public interface MenuMapper extends BaseMapper<Menu> { // 声明 MenuMapper 接�
 
     @Select("SELECT DISTINCT m.id, m.parent_id, m.name, m.path, m.icon, m.sort_no, m.permission_code, m.type, m.status, m.created_at, m.updated_at FROM sys_menu m INNER JOIN sys_role_menu rm ON rm.menu_id = m.id INNER JOIN sys_user_role ur ON ur.role_id = rm.role_id WHERE ur.user_id = #{userId} AND m.status = 'ENABLED' ORDER BY m.sort_no ASC, m.id ASC") // 按用户查询已授权且启用的菜单
     List<Menu> selectByUserId(Long userId); // 定义 selectByUserId 方法的入口
+    @Select("SELECT DISTINCT ur.user_id FROM sys_menu m INNER JOIN sys_role_menu rm ON rm.menu_id = m.id INNER JOIN sys_user_role ur ON ur.role_id = rm.role_id INNER JOIN sys_user u ON u.id = ur.user_id WHERE m.permission_code = #{permissionCode} AND m.status = 'ENABLED' AND u.status = 'ENABLED'")
+    List<Long> selectUserIdsByPermission(String permissionCode);
 } // 

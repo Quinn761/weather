@@ -18,10 +18,14 @@ data:
   REDIS_PORT: "6379"
   AI_BASE_URL: "https://api.deepseek.com"
   AI_MODEL: "deepseek-chat"
+  JEV_ENABLED: "false"
+  JEV_BASE_URL: "https://api.typesafe.ai"
+  JEV_TIMEOUT_SECONDS: "8"
+  JEV_MINIMUM_CONFIDENCE: "0.75"
   PYTHON_AGENT_URL: "http://python-agent:8000"
-  # Capture every ONLINE camera at minute 0 and 30. The backend stores images
-  # on the camera-snapshots PVC and immediately queues AI monitoring.
-  CAMERA_CAPTURE_ENABLED: "true"
+  # Disable scheduled captures and their downstream AI monitoring.
+  # Existing snapshots and manually triggered monitoring remain available.
+  CAMERA_CAPTURE_ENABLED: "false"
   CAMERA_CAPTURE_STREAM_URL: "https://gcalic.v.myalicdn.com/gc/hswlf_1/index.m3u8?contentid=2820180516001"
   CAMERA_CAPTURE_STORAGE_PATH: "/data/camera-snapshots"
 ---
@@ -35,5 +39,5 @@ stringData:
   MYSQL_ROOT_PASSWORD: WeatherHub2026Mysql
   JWT_SECRET: WeatherHubJwtSecret2026ChangeMeToLongRandomString
   POSTGIS_PASSWORD: WeatherHub2026Postgis
-  # AI_API_KEY、ROBOFLOW_API_KEY、QWEATHER_API_KEY、QWEATHER_API_HOST 不要写在仓库里。
+  # AI_API_KEY、JEV_API_KEY、ROBOFLOW_API_KEY、QWEATHER_API_KEY、QWEATHER_API_HOST 不要写在仓库里。
   # 部署时从服务器文件或 GitHub Secret 写入。

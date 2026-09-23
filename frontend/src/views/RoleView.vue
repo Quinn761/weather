@@ -85,7 +85,7 @@ async function remove(row) {
       <template #header>
         <div class="panel-head">
           <span>系统角色</span>
-          <el-button v-if="canWrite" type="primary" @click="openCreate">新建角色</el-button>
+          <el-button v-if="canWrite" class="cmd-btn" type="primary" @click="openCreate">新建角色</el-button>
         </div>
       </template>
       <div class="table-scroll">
@@ -112,6 +112,9 @@ async function remove(row) {
       v-model="dialogVisible"
       :title="editingId ? '编辑角色' : '新建角色'"
       width="560px"
+      append-to-body
+      align-center
+      destroy-on-close
       @opened="onDialogOpened"
       @closed="resetForm"
     >
@@ -135,8 +138,8 @@ async function remove(row) {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submit">保存</el-button>
+        <el-button class="cmd-btn-ghost" @click="dialogVisible = false">取消</el-button>
+        <el-button class="cmd-btn" type="primary" :loading="submitting" @click="submit">保存</el-button>
       </template>
     </el-dialog>
   </div>

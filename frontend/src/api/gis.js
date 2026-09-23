@@ -57,6 +57,7 @@ export async function runRoboflowWorkflow({ imageBase64, corners }) {
     throw new Error(describeRoboflowError(response.status, text, {
       cfRay: response.headers.get('x-roboflow-cf-ray'),
       upstreamStatus: response.headers.get('x-roboflow-upstream-status'),
+      occurredAt: response.headers.get('x-roboflow-occurred-at'),
     }))
   }
   try {
@@ -90,6 +91,7 @@ function describeRoboflowError(status, text, diagnostics = {}) {
   const trace = [
     diagnostics.upstreamStatus ? `上游状态 ${diagnostics.upstreamStatus}` : '',
     diagnostics.cfRay ? `CF-Ray: ${diagnostics.cfRay}` : '',
+    diagnostics.occurredAt ? `发生时间（UTC）: ${diagnostics.occurredAt}` : '',
   ].filter(Boolean).join('；')
   const traceSuffix = trace ? `（${trace}）` : ''
   if (text?.startsWith('Roboflow 代理')) return text
