@@ -76,6 +76,16 @@ const router = createRouter({
           component: () => import('@/views/OfficialAlertsView.vue'),
         },
         {
+          path: 'events', name: 'events',
+          meta: { title: '事件中心', subtitle: '汇聚风险信号，进入统一处置流程', permission: 'ops:event:read' },
+          component: () => import('@/views/EventCenterView.vue'),
+        },
+        {
+          path: 'work-orders', name: 'work-orders',
+          meta: { title: '处置工单', subtitle: '跟进事件响应并记录处置状态', permission: 'ops:work-order:read' },
+          component: () => import('@/views/WorkOrdersView.vue'),
+        },
+        {
           path: 'kb',
           name: 'kb',
           meta: { title: '知识库', permission: 'kb:read' },

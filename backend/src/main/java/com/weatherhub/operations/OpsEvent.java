@@ -1,0 +1,3 @@
+package com.weatherhub.operations;
+import com.baomidou.mybatisplus.annotation.IdType; import com.baomidou.mybatisplus.annotation.TableId; import com.baomidou.mybatisplus.annotation.TableName; import lombok.Getter; import lombok.Setter; import java.time.LocalDateTime;
+@Getter @Setter @TableName("ops_event") public class OpsEvent { @TableId(type=IdType.AUTO) private Long id; private String sourceType; private String sourceKey; private String level; private String status; private String title; private String content; private String regionName; private Double longitude; private Double latitude; private LocalDateTime occurredAt; private Long createdBy; private LocalDateTime createdAt; private LocalDateTime updatedAt; }

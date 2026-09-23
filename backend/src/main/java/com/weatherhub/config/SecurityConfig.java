@@ -73,6 +73,14 @@ public class SecurityConfig { // 声明 SecurityConfig 类
                         .requestMatchers("/api/gis/**").hasAuthority("gis:write") // 改 GIS 标注需要写权限
                         .requestMatchers(HttpMethod.GET, "/api/cameras/**").hasAuthority("camera:read")
                         .requestMatchers("/api/cameras/**").hasAuthority("camera:write")
+                        .requestMatchers(HttpMethod.GET, "/api/operations/events/**").hasAuthority("ops:event:read")
+                        .requestMatchers("/api/operations/events/**").hasAuthority("ops:event:write")
+                        .requestMatchers(HttpMethod.GET, "/api/operations/work-orders/**").hasAuthority("ops:work-order:read")
+                        .requestMatchers(HttpMethod.PATCH, "/api/operations/work-orders/*/assignment").hasAuthority("ops:work-order:assign")
+                        .requestMatchers(HttpMethod.POST, "/api/operations/work-orders/*/progress").hasAuthority("ops:work-order:progress")
+                        .requestMatchers(HttpMethod.POST, "/api/operations/work-orders/*/acceptance").hasAuthority("ops:work-order:accept")
+                        .requestMatchers("/api/operations/work-orders/**").hasAuthority("ops:work-order:write")
+                        .requestMatchers("/api/operations/notifications/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/kb/**").hasAuthority("kb:read")
                         .requestMatchers("/api/kb/**").hasAuthority("kb:write")
                         .requestMatchers("/api/ai/**").hasAuthority("ai:chat") // 大模型助手需要对话权限

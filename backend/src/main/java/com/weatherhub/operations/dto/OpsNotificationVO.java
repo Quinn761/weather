@@ -1,0 +1,2 @@
+package com.weatherhub.operations.dto; import com.weatherhub.operations.OpsNotification; import java.time.LocalDateTime;
+public record OpsNotificationVO(Long id,String type,String title,String content,String targetType,Long targetId,LocalDateTime readAt,LocalDateTime createdAt) { public static OpsNotificationVO from(OpsNotification n) { return new OpsNotificationVO(n.getId(),n.getType(),n.getTitle(),n.getContent(),n.getTargetType(),n.getTargetId(),n.getReadAt(),n.getCreatedAt()); } }

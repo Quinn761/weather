@@ -38,6 +38,7 @@ public class AuthDataInitializer implements ApplicationRunner { // 声明 AuthDa
         try { // 菜单表可能尚未手工建好，失败时只记日志不阻断启动
             seedMenus(); // 确保内置菜单存在
             bindDefaultMenus(); // 给内置角色补齐默认菜单
+            bindWorkerPermissions();
         } catch (Exception ex) { // 捕获建表或写种子失败
             log.warn("初始化菜单失败，请先执行 db/menu.sql：{}", ex.getMessage()); // 提示需要先建表
         } // 
@@ -53,6 +54,8 @@ public class AuthDataInitializer implements ApplicationRunner { // 声明 AuthDa
         Long gisMenuId = ensureMenu("gis:read", 0L, "GIS 标注", "/gis", "Location", 50, Menu.TYPE_MENU);
         Long cameraMenuId = ensureMenu("camera:read", 0L, "摄像头列表", "/cameras", "VideoCamera", 52, Menu.TYPE_MENU);
         ensureMenu("official-alert:read", 0L, "官方灾害预警", "/official-alerts", "Warning", 54, Menu.TYPE_MENU);
+        Long eventMenuId = ensureMenu("ops:event:read", 0L, "事件中心", "/events", "WarningFilled", 57, Menu.TYPE_MENU);
+        Long workOrderMenuId = ensureMenu("ops:work-order:read", 0L, "处置工单", "/work-orders", "List", 58, Menu.TYPE_MENU);
         Long kbMenuId = ensureMenu("kb:read", 0L, "知识库", "/kb", "Collection", 55, Menu.TYPE_MENU);
         ensureMenu("ai:chat", 0L, "Agent 工作台", "/ai", "ChatDotRound", 60, Menu.TYPE_MENU);
         ensureMenu("user:write", userMenuId, "编辑用户", null, null, 21, Menu.TYPE_BUTTON); // 用户写权限
@@ -61,6 +64,11 @@ public class AuthDataInitializer implements ApplicationRunner { // 声明 AuthDa
         ensureMenu("gis:write", gisMenuId, "编辑 GIS 标注", null, null, 51, Menu.TYPE_BUTTON);
         ensureMenu("camera:write", cameraMenuId, "编辑摄像头", null, null, 53, Menu.TYPE_BUTTON);
         ensureMenu("kb:write", kbMenuId, "编辑知识库", null, null, 56, Menu.TYPE_BUTTON);
+        ensureMenu("ops:event:write", eventMenuId, "编辑事件", null, null, 57, Menu.TYPE_BUTTON);
+        ensureMenu("ops:work-order:write", workOrderMenuId, "编辑工单", null, null, 58, Menu.TYPE_BUTTON);
+        ensureMenu("ops:work-order:assign", workOrderMenuId, "指派协同", null, null, 59, Menu.TYPE_BUTTON);
+        ensureMenu("ops:work-order:progress", workOrderMenuId, "记录进展", null, null, 60, Menu.TYPE_BUTTON);
+        ensureMenu("ops:work-order:accept", workOrderMenuId, "验收工单", null, null, 61, Menu.TYPE_BUTTON);
     } // 
 
     private Long ensureMenu(String permissionCode, Long parentId, String name, String path, String icon, int sortNo, String type) { // 定义 ensureMenu 方法的入口
@@ -111,6 +119,12 @@ public class AuthDataInitializer implements ApplicationRunner { // 声明 AuthDa
             } // 
         } // 
     } // 
+
+    private void bindWorkerPermissions() {
+        Role user = roleMapper.selectOne(new LambdaQueryWrapper<Role>().eq(Role::getCode, "USER"));
+        if (user == null) return;
+        menuMapper.selectList(new LambdaQueryWrapper<Menu>().in(Menu::getPermissionCode, java.util.List.of("ops:work-order:read", "ops:work-order:progress"))).forEach(menu -> roleMenuMapper.insertIgnore(user.getId(), menu.getId()));
+    }
 
     private void ensureAccount(String username, String nickname, String rawPassword, String roleCode) { // 定义 ensureAccount 方法的入口
         Role role = roleMapper.selectOne(new LambdaQueryWrapper<Role>().eq(Role::getCode, roleCode)); // 按编码查找角色

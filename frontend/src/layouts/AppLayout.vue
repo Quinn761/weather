@@ -6,7 +6,7 @@ import { Bell, Monitor, SwitchButton } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/BrandLogo.vue'
 import WorkspaceBackdrop from '@/components/WorkspaceBackdrop.vue'
-import { listActiveCameraAlerts } from '@/api/camera'
+import { listNotifications, readNotification } from '@/api/operations'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,14 +37,18 @@ const isGisPage = computed(() => route.path === '/gis')
 const isCameraDetailPage = computed(() => route.name === 'camera-detail')
 const isOfficialAlertsPage = computed(() => route.path === '/official-alerts')
 const alerts = ref([])
+const unreadAlertCount = computed(() => alerts.value.filter((item) => !item.readAt).length)
 let alertTimer
 
 async function loadAlerts() {
-  try { alerts.value = await listActiveCameraAlerts() || [] } catch { /* handled by HTTP interceptor */ }
+  try { alerts.value = await listNotifications() || [] } catch { /* handled by HTTP interceptor */ }
 }
 
-function openAlert(alert) {
-  router.push({ name: 'camera-detail', params: { id: alert.cameraId } }).catch(() => {})
+async function openAlert(alert) {
+  await readNotification(alert.id)
+  alerts.value = alerts.value.map(item => item.id === alert.id ? { ...item, readAt: new Date().toISOString() } : item)
+  const name = alert.targetType === 'WORK_ORDER' ? 'work-orders' : 'events'
+  router.push({ name }).catch(() => {})
 }
 
 onMounted(() => {
@@ -109,14 +113,14 @@ async function logout() {
           <el-popover placement="bottom-end" :width="360" trigger="click" @show="loadAlerts">
             <template #reference>
               <button class="topbar-bell" type="button" aria-label="通知">
-                <el-icon><Bell /></el-icon><b v-if="alerts.length">{{ alerts.length }}</b>
+                <el-icon><Bell /></el-icon><b v-if="unreadAlertCount">{{ unreadAlertCount }}</b>
               </button>
             </template>
             <section class="alert-popover">
               <header><strong>预警通知</strong><span>{{ alerts.length ? `${alerts.length} 条待关注` : '暂无活动预警' }}</span></header>
-              <button v-for="alert in alerts" :key="alert.id" class="alert-item" type="button" @click="openAlert(alert)">
+              <button v-for="alert in alerts" :key="alert.id" class="alert-item" :class="{ unread: !alert.readAt }" type="button" @click="openAlert(alert)">
                 <span class="alert-level">一般预警</span><strong>{{ alert.title }}</strong><p>{{ alert.content }}</p>
-                <time>{{ String(alert.lastDetectedAt || '').replace('T', ' ').slice(0, 16) }}</time>
+                <time>{{ String(alert.createdAt || '').replace('T', ' ').slice(0, 16) }}</time>
               </button>
             </section>
           </el-popover>
@@ -140,6 +144,7 @@ async function logout() {
 .alert-popover header { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 2px 8px; border-bottom: 1px solid var(--el-border-color-lighter); }
 .alert-popover header span, .alert-item p, .alert-item time { color: var(--el-text-color-secondary); font-size: 12px; }
 .alert-item { display: grid; gap: 4px; padding: 10px; border: 0; border-radius: 7px; background: var(--el-fill-color-light); text-align: left; cursor: pointer; }
+.alert-item.unread { box-shadow: inset 2px 0 #45d6ee; }
 .alert-item:hover { background: var(--el-fill-color); }
 .alert-item strong { font-size: 13px; color: var(--el-text-color-primary); }.alert-item p { margin: 0; line-height: 1.5; }.alert-item time { font-size: 11px; }
 .alert-level { color: #b45309; font-size: 11px; font-weight: 600; }

@@ -1,0 +1,1 @@
+package com.weatherhub.operations.dto; import jakarta.validation.constraints.NotBlank; import jakarta.validation.constraints.Pattern; public record UpdateWorkOrderStatusRequest(@NotBlank @Pattern(regexp="TODO|PROCESSING|DONE") String status) { }

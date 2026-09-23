@@ -1,0 +1,3 @@
+package com.weatherhub.operations;
+import com.baomidou.mybatisplus.annotation.IdType; import com.baomidou.mybatisplus.annotation.TableId; import com.baomidou.mybatisplus.annotation.TableName; import lombok.Getter; import lombok.Setter; import java.time.LocalDateTime;
+@Getter @Setter @TableName("ops_work_order") public class OpsWorkOrder { @TableId(type=IdType.AUTO) private Long id; private Long eventId; private String title; private String description; private String status; private String priority; private Long assigneeId; private Long createdBy; private LocalDateTime dueAt; private LocalDateTime completedAt; private LocalDateTime createdAt; private LocalDateTime updatedAt; }

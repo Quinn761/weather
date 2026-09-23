@@ -1,0 +1,13 @@
+import http from './http'
+export const listEvents = (params) => http.get('/operations/events', { params })
+export const createEvent = (data) => http.post('/operations/events', data)
+export const listWorkOrders = (params) => http.get('/operations/work-orders', { params })
+export const createWorkOrder = (data) => http.post('/operations/work-orders', data)
+export const updateWorkOrderStatus = (id, status) => http.patch(`/operations/work-orders/${id}/status`, { status })
+export const deleteWorkOrder = (id) => http.delete(`/operations/work-orders/${id}`)
+export const assignWorkOrder = (id, data) => http.patch(`/operations/work-orders/${id}/assignment`, data)
+export const getWorkOrderDetail = (id) => http.get(`/operations/work-orders/${id}`)
+export const addWorkOrderProgress = (id, data) => http.post(`/operations/work-orders/${id}/progress`, data)
+export const acceptWorkOrder = (id, data) => http.post(`/operations/work-orders/${id}/acceptance`, data)
+export const listNotifications = () => http.get('/operations/notifications')
+export const readNotification = (id) => http.post(`/operations/notifications/${id}/read`)
