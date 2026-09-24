@@ -20,11 +20,12 @@ on:
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
   actions: write
+  packages: write
 
 jobs:
   deploy:
@@ -44,14 +45,21 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build backend image
         uses: docker/build-push-action@v6
         with:
           context: ./backend
-          load: true
+          push: true
           tags: |
-            weather_backend:${{ github.sha }}
-            weather_backend:latest
+            ghcr.io/${{ github.repository_owner }}/weather-backend:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/weather-backend:latest
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
@@ -59,36 +67,29 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
-          load: true
+          push: true
           build-args: |
             VITE_ROBOFLOW_API_KEY=${{ secrets.ROBOFLOW_API_KEY }}
           tags: |
-            weather_frontend:${{ github.sha }}
-            weather_frontend:latest
+            ghcr.io/${{ github.repository_owner }}/weather-frontend:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/weather-frontend:latest
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
-      - name: Save images and manifests
+      - name: Save deployment manifests
         run: |
-          # One tag per image (layers are shared); retag :latest on the server after import.
-          # pigz is gzip-compatible, so the server does not need extra packages.
-          sudo apt-get update -qq && sudo apt-get install -y pigz
-          docker save \
-            "weather_backend:${IMAGE_TAG}" \
-            "weather_frontend:${IMAGE_TAG}" \
-            | pigz -3 > weather-images.tar.gz
           mkdir -p k8s/python-agent-app
           cp python-agent/app/*.py k8s/python-agent-app/
           tar czf weather-k8s.tar.gz k8s
-          ls -lh weather-images.tar.gz weather-k8s.tar.gz
+          ls -lh weather-k8s.tar.gz
 
-      - name: Copy artifacts to server
+      - name: Copy deployment manifests to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: weather-images.tar.gz,weather-k8s.tar.gz
+          source: weather-k8s.tar.gz
           target: /tmp/weather-deploy/${{ github.run_id }}-${{ github.run_attempt }}
           timeout: 25m
 
@@ -168,41 +169,26 @@ jobs:
               free -h || true
             fi
 
-            img="$DEPLOY_DIR/weather-images.tar.gz"
             k8s="$DEPLOY_DIR/weather-k8s.tar.gz"
-            if [ ! -s "$img" ] || [ ! -s "$k8s" ]; then
+            if [ ! -s "$k8s" ]; then
               echo "找不到上传的制品"
               ls -la "$DEPLOY_DIR"
               exit 1
             fi
 
             echo "== artifacts =="
-            ls -lh "$img" "$k8s"
+            ls -lh "$k8s"
 
-            echo "== import start $(date -Is) =="
-            # Fail fast with diagnostics instead of hanging the whole SSH step.
-            if ! timeout --kill-after=30s 8m bash -o pipefail -c 'gzip -dc "$1" | k3s ctr images import -' bash "$img"; then
-              echo "镜像导入失败或超时"
-              df -h / || true
-              free -h || true
-              exit 1
-            fi
-            echo "== import done $(date -Is) =="
-            k3s ctr images tag "docker.io/library/weather_backend:${IMAGE_TAG}" weather_backend:latest || \
-              k3s ctr images tag "weather_backend:${IMAGE_TAG}" weather_backend:latest || true
-            k3s ctr images tag "docker.io/library/weather_frontend:${IMAGE_TAG}" weather_frontend:latest || \
-              k3s ctr images tag "weather_frontend:${IMAGE_TAG}" weather_frontend:latest || true
-            rm -f "$img"
 
             mkdir -p "$DEPLOY_DIR/manifests"
             tar xzf "$k8s" -C "$DEPLOY_DIR/manifests"
             K8SDIR="$DEPLOY_DIR/manifests/k8s"
 
             SAM2_URL="${SAM2_SERVICE_URL:-http://python-agent:8000}"
-            # Bake image tags + SAM URL into manifests so apply triggers a single rollout.
-            sed -i "s|image: weather_backend:.*|image: weather_backend:${IMAGE_TAG}|" "$K8SDIR/03-backend.yaml"
+            # Images are pulled directly from GHCR by K3s, avoiding slow SCP image uploads.
+            sed -i "s|image: weather_backend:.*|image: ghcr.io/quinn761/weather-backend:${IMAGE_TAG}|" "$K8SDIR/03-backend.yaml"
             sed -i "s|value: http://python-agent:8000|value: ${SAM2_URL}|" "$K8SDIR/03-backend.yaml"
-            sed -i "s|image: weather_frontend:.*|image: weather_frontend:${IMAGE_TAG}|" "$K8SDIR/04-frontend.yaml"
+            sed -i "s|image: weather_frontend:.*|image: ghcr.io/quinn761/weather-frontend:${IMAGE_TAG}|" "$K8SDIR/04-frontend.yaml"
 
             echo "== apply manifests =="
             kubectl apply -f "$K8SDIR/01-config.yaml"
