@@ -8,7 +8,11 @@ import stormListBg from '@/assets/tropical/storm-list-bg.png'
 // 省级边界经离线简化，保留交互精度的同时降低缩放时的矢量重绘开销。
 const CHINA_BOUNDARY_URL = `${import.meta.env.BASE_URL}china-100000-optimized.json`
 const OUTSIDE_MASK_URL = `${import.meta.env.BASE_URL}china-outside-mask.json`
-const ADMIN_BOUNDARY_URL = 'https://geo.datav.aliyun.com/areas_v3/bound'
+const ADMIN_BOUNDARY_URLS = [
+  `${import.meta.env.BASE_URL}admin-boundary`.replace(/\/$/, ''),
+  'https://geo.datav.aliyun.com/areas_v3/bound',
+  'https://geo.datav.aliyun.com/areas/bound',
+]
 const TIANDITU_TOKEN = import.meta.env.VITE_TIANDITU_TOKEN || '38ca5876c8ba7b71eb08803d408b6184'
 const mapEl = ref(null)
 const loading = ref(true)
@@ -573,6 +577,20 @@ function createDrilldownLayers(data) {
   }).addTo(map)
 }
 
+async function fetchDrilldownBoundary(adcode) {
+  for (const baseUrl of ADMIN_BOUNDARY_URLS) {
+    try {
+      const response = await fetch(`${baseUrl}/${adcode}_full.json`, { cache: 'force-cache' })
+      if (!response.ok) continue
+      const data = await response.json()
+      if (data?.type === 'FeatureCollection' && Array.isArray(data.features) && data.features.length) return data
+    } catch {
+      // Try the next provider. The same-origin proxy is preferred in production.
+    }
+  }
+  return null
+}
+
 async function drillDown(feature, provinceLayer) {
   const { name, adcode } = feature.properties || {}
   if (!name || !adcode || !map) return
@@ -588,18 +606,12 @@ async function drillDown(feature, provinceLayer) {
   }).addTo(map)
   createDrilldownLayers(feature)
   if (provinceLayer.getBounds().isValid()) map.fitBounds(provinceLayer.getBounds(), { padding: [36, 36], maxZoom: 7.5, animate: true })
-  try {
-    const response = await fetch(`${ADMIN_BOUNDARY_URL}/${adcode}_full.json`)
-    if (!response.ok || drilldownRegion.value?.adcode !== adcode) return
-    const data = await response.json()
-    if (drilldownRegion.value?.adcode !== adcode) return
-    drilldownLayer?.remove()
-    drilldownDepthLayer?.remove()
-    drilldownGlowLayer?.remove()
-    createDrilldownLayers(data)
-  } catch {
-    // The selected province remains visible when the optional city boundary request fails.
-  }
+  const data = await fetchDrilldownBoundary(adcode)
+  if (!data || drilldownRegion.value?.adcode !== adcode) return
+  drilldownLayer?.remove()
+  drilldownDepthLayer?.remove()
+  drilldownGlowLayer?.remove()
+  createDrilldownLayers(data)
 }
 
 function returnToNational() {

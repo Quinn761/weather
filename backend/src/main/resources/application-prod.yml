@@ -38,7 +38,7 @@ weatherhub:
     timeout-seconds: ${AI_TIMEOUT_SECONDS:90}
     max-tool-rounds: ${AI_MAX_TOOL_ROUNDS:6}
   jev:
-    enabled: ${JEV_ENABLED:false}
+    enabled: ${JEV_ENABLED:true}
     api-key: ${JEV_API_KEY:}
     base-url: ${JEV_BASE_URL:https://api.typesafe.ai}
     model: ${JEV_MODEL:jev-latest}

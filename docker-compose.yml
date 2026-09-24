@@ -115,7 +115,7 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
       AI_MODEL: ${AI_MODEL:-deepseek-chat}
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
-      JEV_ENABLED: ${JEV_ENABLED:-false}
+      JEV_ENABLED: ${JEV_ENABLED:-true}
       JEV_API_KEY: ${JEV_API_KEY:-}
       JEV_BASE_URL: ${JEV_BASE_URL:-https://api.typesafe.ai}
       JEV_MODEL: ${JEV_MODEL:-jev-latest}
