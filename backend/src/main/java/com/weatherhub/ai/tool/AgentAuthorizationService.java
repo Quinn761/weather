@@ -11,18 +11,18 @@ import java.util.stream.Collectors;
 /** The policy layer. Model output never participates in this decision. */
 @Service
 public class AgentAuthorizationService {
-    private static final Map<String, ToolPolicy> POLICIES = Map.of(
-            "get_current_weather", new ToolPolicy(ToolOperation.READ, List.of()),
-            "get_official_alerts", new ToolPolicy(ToolOperation.READ, List.of("official-alert:read")),
-            "get_current_user", new ToolPolicy(ToolOperation.READ, List.of()),
-            "get_dashboard_overview", new ToolPolicy(ToolOperation.READ, List.of("dashboard:view")),
-            "list_gis_features", new ToolPolicy(ToolOperation.READ, List.of("gis:read")),
-            "search_knowledge", new ToolPolicy(ToolOperation.READ, List.of("kb:read")),
-            "get_system_data", new ToolPolicy(ToolOperation.READ, List.of("dashboard:view")),
-            "delete_user", new ToolPolicy(ToolOperation.WRITE, List.of("user:write")),
-            "update_user", new ToolPolicy(ToolOperation.WRITE, List.of("user:write")),
-            "delete_gis_feature", new ToolPolicy(ToolOperation.WRITE, List.of("gis:write")),
-            "publish_alert", new ToolPolicy(ToolOperation.PUBLISH, List.of())
+    private static final Map<String, ToolPolicy> POLICIES = Map.ofEntries(
+            Map.entry("get_current_weather", new ToolPolicy(ToolOperation.READ, List.of())),
+            Map.entry("get_official_alerts", new ToolPolicy(ToolOperation.READ, List.of("official-alert:read"))),
+            Map.entry("get_current_user", new ToolPolicy(ToolOperation.READ, List.of())),
+            Map.entry("get_dashboard_overview", new ToolPolicy(ToolOperation.READ, List.of("dashboard:view"))),
+            Map.entry("list_gis_features", new ToolPolicy(ToolOperation.READ, List.of("gis:read"))),
+            Map.entry("search_knowledge", new ToolPolicy(ToolOperation.READ, List.of("kb:read"))),
+            Map.entry("get_system_data", new ToolPolicy(ToolOperation.READ, List.of("dashboard:view"))),
+            Map.entry("delete_user", new ToolPolicy(ToolOperation.WRITE, List.of("user:write"))),
+            Map.entry("update_user", new ToolPolicy(ToolOperation.WRITE, List.of("user:write"))),
+            Map.entry("delete_gis_feature", new ToolPolicy(ToolOperation.WRITE, List.of("gis:write"))),
+            Map.entry("publish_alert", new ToolPolicy(ToolOperation.PUBLISH, List.of()))
     );
 
     public ToolAuthorizationDecision authorize(String tool, Authentication authentication) {
