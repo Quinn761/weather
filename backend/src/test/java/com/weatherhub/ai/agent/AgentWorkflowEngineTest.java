@@ -20,4 +20,10 @@ class AgentWorkflowEngineTest {
         var steps = workflow.build(new IntentDecision("chat", "jev", 0.99), "写一首诗");
         assertTrue(steps.stream().noneMatch(step -> step.tool() != null));
     }
+
+    @Test
+    void officialAlertIntentUsesReadOnlyAlertTool() {
+        var steps = workflow.build(new IntentDecision("official_alert", "jev", 0.99), "官方预警");
+        assertTrue(steps.stream().anyMatch(step -> "get_official_alerts".equals(step.tool())));
+    }
 }

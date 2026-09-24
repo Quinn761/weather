@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 public class AgentAuthorizationService {
     private static final Map<String, ToolPolicy> POLICIES = Map.of(
             "get_current_weather", new ToolPolicy(ToolOperation.READ, List.of()),
+            "get_official_alerts", new ToolPolicy(ToolOperation.READ, List.of("official-alert:read")),
             "get_current_user", new ToolPolicy(ToolOperation.READ, List.of()),
             "get_dashboard_overview", new ToolPolicy(ToolOperation.READ, List.of("dashboard:view")),
             "list_gis_features", new ToolPolicy(ToolOperation.READ, List.of("gis:read")),

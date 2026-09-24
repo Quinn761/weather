@@ -24,6 +24,7 @@ public class IntentRoutingService {
         if (contains(text, "gis", "标注", "圈地", "地块", "postgis")) return "gis";
         if (contains(text, "天气", "气温", "温度", "湿度", "下雨", "降雨", "预报", "空气质量", "pm2", "pm10", "aqi")) return "weather";
         if (contains(text, "jwt", "rbac", "权限", "黑名单", "redis", "mcp", "rag", "agent", "知识库", "系统原理", "系统架构", "本项目", "当前系统", "功能", "部署", "sam", "roboflow", "spring", "security")) return "system_knowledge";
+        if (contains(text, "\u9884\u8b66", "\u8b66\u62a5", "\u707e\u5bb3", "\u53f0\u98ce", "alert", "warning")) return "official_alert";
         return "chat";
     }
 

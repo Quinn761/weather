@@ -21,7 +21,7 @@ import java.util.Optional;
 @Component
 public class JevDecisionClient {
     private static final JsonMapper JSON = JsonMapper.builder().build();
-    private static final List<String> INTENTS = List.of("weather", "dashboard", "gis", "current_user", "system_knowledge", "chat");
+    private static final List<String> INTENTS = List.of("weather", "official_alert", "dashboard", "gis", "current_user", "system_knowledge", "chat");
 
     private final JevProperties properties;
     private final RestClient http;
@@ -46,6 +46,7 @@ public class JevDecisionClient {
                             "instructions", "Classify the user's request into exactly one supported Weather Data Hub intent. Do not recommend an action.",
                             "criteria", Map.of(
                                     "weather", "Current weather or forecast request",
+                                    "official_alert", "Official disaster warning or alert request",
                                     "dashboard", "Dashboard overview or metrics request",
                                     "gis", "GIS layers, features, map, or annotation request",
                                     "current_user", "Current signed-in user or their permissions request",

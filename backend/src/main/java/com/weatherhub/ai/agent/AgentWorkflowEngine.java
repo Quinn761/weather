@@ -20,6 +20,7 @@ public class AgentWorkflowEngine {
             case "gis" -> List.of(intent, new PlanStep("operator", "工作流 · 查询 GIS 标注", "list_gis_features", "{}"), reviewer);
             case "current_user" -> List.of(intent, new PlanStep("operator", "工作流 · 查询当前登录用户", "get_current_user", "{}"), reviewer);
             case "system_knowledge" -> List.of(intent, new PlanStep("knowledge", "工作流 · 检索项目知识", "search_knowledge", json(Map.of("query", question))), reviewer);
+            case "official_alert" -> List.of(intent, new PlanStep("operator", "Official alert lookup", "get_official_alerts", json(Map.of("query", question))), reviewer);
             default -> List.of(intent, reviewer);
         };
     }
