@@ -97,6 +97,7 @@ jobs:
         env:
           IMAGE_TAG: ${{ github.sha }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
           ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
           QWEATHER_API_KEY: ${{ secrets.QWEATHER_API_KEY }}
           QWEATHER_API_HOST: ${{ secrets.QWEATHER_API_HOST }}
@@ -106,7 +107,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: IMAGE_TAG,AI_API_KEY,ROBOFLOW_API_KEY,QWEATHER_API_KEY,QWEATHER_API_HOST,SAM2_SERVICE_URL,DEPLOY_DIR
+          envs: IMAGE_TAG,AI_API_KEY,JEV_API_KEY,ROBOFLOW_API_KEY,QWEATHER_API_KEY,QWEATHER_API_HOST,SAM2_SERVICE_URL,DEPLOY_DIR
           command_timeout: 25m
           script: |
             set -euo pipefail
@@ -209,11 +210,15 @@ jobs:
             kubectl -n weather rollout status deploy/redis --timeout=120s
 
             AI_API_KEY="${AI_API_KEY:-}"
+            JEV_API_KEY="${JEV_API_KEY:-}"
             ROBOFLOW_API_KEY="${ROBOFLOW_API_KEY:-}"
             QWEATHER_API_KEY="${QWEATHER_API_KEY:-}"
             QWEATHER_API_HOST="${QWEATHER_API_HOST:-}"
             if [ -z "$AI_API_KEY" ] && [ -f /root/.weather-ai-key ]; then
               AI_API_KEY="$(tr -d '\r\n' < /root/.weather-ai-key)"
+            fi
+            if [ -z "$JEV_API_KEY" ] && [ -f /root/.weather-jev-key ]; then
+              JEV_API_KEY="$(tr -d '\r\n' < /root/.weather-jev-key)"
             fi
             if [ -z "$ROBOFLOW_API_KEY" ] && [ -f /root/.weather-roboflow-key ]; then
               ROBOFLOW_API_KEY="$(tr -d '\r\n' < /root/.weather-roboflow-key)"
@@ -228,6 +233,10 @@ jobs:
               printf '%s' "$AI_API_KEY" > /root/.weather-ai-key
               chmod 600 /root/.weather-ai-key
             fi
+            if [ -n "$JEV_API_KEY" ]; then
+              printf '%s' "$JEV_API_KEY" > /root/.weather-jev-key
+              chmod 600 /root/.weather-jev-key
+            fi
             if [ -n "$ROBOFLOW_API_KEY" ]; then
               printf '%s' "$ROBOFLOW_API_KEY" > /root/.weather-roboflow-key
               chmod 600 /root/.weather-roboflow-key
@@ -240,7 +249,7 @@ jobs:
               printf '%s' "$QWEATHER_API_HOST" > /root/.weather-qweather-host
               chmod 600 /root/.weather-qweather-host
             fi
-            python3 -c "import json,os; from pathlib import Path; data={'stringData':{}}; files={'AI_API_KEY':'/root/.weather-ai-key','ROBOFLOW_API_KEY':'/root/.weather-roboflow-key','QWEATHER_API_KEY':'/root/.weather-qweather-key','QWEATHER_API_HOST':'/root/.weather-qweather-host'}; [data['stringData'].update({name:value}) for name,path in files.items() if Path(path).exists() and (value:=Path(path).read_text().strip())]; (Path(os.environ['DEPLOY_DIR'])/'secret-patch.json').write_text(json.dumps(data)) if data['stringData'] else None"
+            python3 -c "import json,os; from pathlib import Path; data={'stringData':{}}; files={'AI_API_KEY':'/root/.weather-ai-key','JEV_API_KEY':'/root/.weather-jev-key','ROBOFLOW_API_KEY':'/root/.weather-roboflow-key','QWEATHER_API_KEY':'/root/.weather-qweather-key','QWEATHER_API_HOST':'/root/.weather-qweather-host'}; [data['stringData'].update({name:value}) for name,path in files.items() if Path(path).exists() and (value:=Path(path).read_text().strip())]; (Path(os.environ['DEPLOY_DIR'])/'secret-patch.json').write_text(json.dumps(data)) if data['stringData'] else None"
             if [ -f "$DEPLOY_DIR/secret-patch.json" ]; then
               kubectl -n weather patch secret weather-secret --type merge --patch-file "$DEPLOY_DIR/secret-patch.json"
               rm -f "$DEPLOY_DIR/secret-patch.json"
