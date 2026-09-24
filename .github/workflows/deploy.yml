@@ -58,8 +58,8 @@ jobs:
           context: ./backend
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/weather-backend:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/weather-backend:latest
+            ghcr.io/quinn761/weather-backend:${{ github.sha }}
+            ghcr.io/quinn761/weather-backend:latest
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
@@ -71,8 +71,8 @@ jobs:
           build-args: |
             VITE_ROBOFLOW_API_KEY=${{ secrets.ROBOFLOW_API_KEY }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/weather-frontend:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/weather-frontend:latest
+            ghcr.io/quinn761/weather-frontend:${{ github.sha }}
+            ghcr.io/quinn761/weather-frontend:latest
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
