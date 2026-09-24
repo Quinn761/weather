@@ -22,7 +22,6 @@ const selectedRegion = ref('全国')
 const alertOverview = ref(null)
 const tropicalOverview = ref(null)
 const selectedStormId = ref('')
-const warningScrollOffset = ref(0)
 const drilldownRegion = ref(null)
 const radarEnabled = ref(true)
 const radarFrames = ref([])
@@ -30,7 +29,6 @@ const radarFrameIndex = ref(0)
 const radarHost = ref('')
 const radarPlaying = ref(false)
 const warningByRegion = new Map()
-let warningScrollTimer
 let radarRefreshTimer
 let radarPlayTimer
 let map
@@ -101,6 +99,16 @@ function warningLevelTone(level) {
   return 'tone-default'
 }
 
+function warningClock(value) {
+  const text = String(value || '').replace('T', ' ').trim()
+  return text.length >= 16 ? text.slice(5, 16) : (text || '时间待更新')
+}
+
+function warningExcerpt(warning) {
+  const body = String(warning?.text || warning?.title || '').replace(/\s+/g, ' ').trim()
+  return body || '暂无预警正文'
+}
+
 function warningSeverity(level) {
   return { Red: 4, '红色': 4, Orange: 3, '橙色': 3, Yellow: 2, '黄色': 2, Blue: 1, '蓝色': 1 }[level] || 0
 }
@@ -127,16 +135,15 @@ const displayWarnings = computed(() => {
   }
   return selectedWarnings.value.map((warning) => ({ ...warning, regionName: selectedRegion.value }))
 })
-const visibleWarnings = computed(() => {
+const marqueeWarnings = computed(() => {
   const warnings = displayWarnings.value
-  if (warnings.length <= 5) return warnings
-  return Array.from({ length: 5 }, (_, index) => warnings[(warningScrollOffset.value + index) % warnings.length])
+  return warnings.length > 2 ? [...warnings, ...warnings] : warnings
 })
+const marqueeDuration = computed(() => `${Math.max(16, displayWarnings.value.length * 5)}s`)
 const warningCount = computed(() => (alertOverview.value?.regions || []).reduce((total, region) => total + (region.warnings?.length || 0), 0))
 const tropicalStorms = computed(() => tropicalOverview.value?.storms || [])
 const selectedTropicalStorm = computed(() => tropicalStorms.value.find((storm) => storm.id === selectedStormId.value) || tropicalStorms.value[0] || null)
 
-watch(selectedRegion, () => { warningScrollOffset.value = 0 })
 function focusTropicalStorm() {
   const storm = selectedTropicalStorm.value
   if (!storm || !map) return
@@ -729,13 +736,9 @@ onMounted(async () => {
     loading.value = false
     requestAnimationFrame(() => map?.invalidateSize())
   }
-  warningScrollTimer = window.setInterval(() => {
-    if (displayWarnings.value.length > 4) warningScrollOffset.value = (warningScrollOffset.value + 1) % displayWarnings.value.length
-  }, 3000)
 })
 
 onBeforeUnmount(() => {
-  window.clearInterval(warningScrollTimer)
   window.clearInterval(radarRefreshTimer)
   stopRadarPlayback()
   map?.remove()
@@ -758,20 +761,31 @@ onBeforeUnmount(() => {
         <p>区域定位</p><strong>{{ selectedRegion }}</strong><span>省级行政区</span>
         <hr>
         <p>预警状态 · {{ selectedRegion }}</p>
-        <div v-if="visibleWarnings.length" class="warning-list">
-          <article
-            v-for="warning in visibleWarnings"
-            :key="warning.id"
-            class="warning-item"
-            :class="warningLevelTone(warning.level)"
-          >
-            <div class="warning-item-head">
-              <span class="warning-level">{{ warning.level || '预警' }}</span>
-              <span class="warning-region">{{ warning.regionName }}</span>
-            </div>
-            <strong class="warning-type">{{ warning.typeName || '灾害' }}预警</strong>
-            <p class="warning-title">{{ warning.title }}</p>
-          </article>
+        <div
+          v-if="displayWarnings.length"
+          class="warning-list"
+          :class="{ scrolling: displayWarnings.length > 2 }"
+          :style="{ '--marquee-duration': marqueeDuration }"
+        >
+          <div class="warning-track">
+            <article
+              v-for="(warning, index) in marqueeWarnings"
+              :key="`${warning.id}-${index}`"
+              class="warning-item"
+              :class="warningLevelTone(warning.level)"
+            >
+              <div class="warning-item-head">
+                <span class="warning-level">{{ warning.level || '预警' }}</span>
+                <time>{{ warningClock(warning.pubTime) }}</time>
+              </div>
+              <strong class="warning-type">{{ warning.typeName || '灾害预警' }}</strong>
+              <div class="warning-meta">
+                <span>{{ warning.sender || '发布单位待更新' }}</span>
+                <span>{{ warning.regionName || '未标注区域' }}</span>
+              </div>
+              <p class="warning-title">{{ warningExcerpt(warning) }}</p>
+            </article>
+          </div>
         </div>
         <b v-else>{{ alertOverview?.configured ? '暂无预警' : '接口未配置' }}</b>
       </aside>
@@ -888,10 +902,12 @@ onBeforeUnmount(() => {
   position: absolute;
   z-index: 4;
   top: 72px;
+  bottom: 24px;
   left: 26px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
-  width: 286px;
+  width: 380px;
   padding: 16px;
   border: 1px solid #4bc8f066;
   border-radius: 8px;
@@ -1200,23 +1216,41 @@ onBeforeUnmount(() => {
   background: #2c1809ef !important;
   color: #fff4df !important;
 }
-.map-console p { margin: 0; color: #75a8c6; font-size: 10px; letter-spacing: .1em; }
+.map-console p { margin: 0; color: #75a8c6; font-size: 11px; letter-spacing: .1em; }
 .map-console > strong { color: #e6f7ff; font-size: 17px; }
 .map-console > span { color: #8daec3; font-size: 11px; }
 .map-console hr { width: 100%; margin: 4px 0 6px; border: 0; border-top: 1px solid #4bc8f02e; }
 .map-console > b { color: #ffbd70; font-size: 12px; }
 
 .warning-list {
-  display: grid;
-  gap: 12px;
-  max-height: 360px;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
+}
+.warning-list.scrolling {
+  -webkit-mask-image: linear-gradient(transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(transparent, #000 16px, #000 calc(100% - 16px), transparent);
+}
+.warning-track {
+  --warning-gap: 12px;
+  display: grid;
+  gap: var(--warning-gap);
+}
+.warning-list.scrolling .warning-track {
+  animation: warning-marquee var(--marquee-duration, 24s) linear infinite;
+}
+.warning-list.scrolling:hover .warning-track {
+  animation-play-state: paused;
+}
+@keyframes warning-marquee {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(-50% - var(--warning-gap) / 2)); }
 }
 .warning-item {
   position: relative;
   display: grid;
-  gap: 8px;
-  padding: 14px 14px 14px 16px;
+  gap: 6px;
+  padding: 12px 12px 12px 15px;
   border: 1px solid #3d8fb84d;
   border-radius: 8px;
   background: linear-gradient(110deg, #0a2740d4, #0b1f3399);
@@ -1250,30 +1284,51 @@ onBeforeUnmount(() => {
   font: 700 10px/1.2 ui-monospace, 'Cascadia Code', monospace;
   letter-spacing: .06em;
 }
-.warning-region {
-  color: #8fb7cf;
-  font-size: 11px;
-  letter-spacing: .04em;
+.warning-item-head time {
+  color: #b7d4e6;
+  font-size: 12px;
+  letter-spacing: .02em;
   white-space: nowrap;
 }
 .warning-type {
+  overflow: hidden;
   color: #e8f4ff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: .02em;
   line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.warning-meta {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  color: #c5deee;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.warning-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.warning-meta span + span::before {
+  content: '·';
+  margin-right: 8px;
+  color: #5f849b;
 }
 .warning-title {
-  margin: 0;
-  overflow: hidden;
-  color: #94b6cb;
-  font-size: 11px;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  white-space: normal;
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #04101899;
+  color: #f4fbff;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.75;
+  letter-spacing: .01em;
 }
 .warning-item.tone-red { --tone: #ff6b6b; --tone-text: #ffd0d0; }
 .warning-item.tone-orange { --tone: #ffb04a; --tone-text: #ffe0b0; }

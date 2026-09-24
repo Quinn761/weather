@@ -54,12 +54,17 @@ public class GetOfficialAlertsTool implements AiTool {
                 + String.join("\n- ", warnings.subList(0, Math.min(limit, warnings.size()))) + suffix;
     }
 
-    private static boolean matches(String searchable, String query) {
+    static boolean matches(String searchable, String query) {
         if (!StringUtils.hasText(query)) return true;
         String normalized = searchable.toLowerCase(Locale.ROOT);
-        for (String term : query.toLowerCase(Locale.ROOT).split("[，。,；;、\\s]+")) {
+        String terms = query.toLowerCase(Locale.ROOT)
+                .replaceAll("官方|当前|现在|的|灾害|预警|警报|信息|有哪些|有无|有没有|查询|查看|帮我|请问|一下|吗|呢", " ");
+        boolean hasKeyword = false;
+        for (String term : terms.split("[，。,；;、\\s]+")) {
             if (term.length() >= 2 && normalized.contains(term)) return true;
+            if (term.length() >= 2) hasKeyword = true;
         }
-        return query.contains("全部") || query.contains("哪些") || query.contains("当前") || query.contains("现在");
+        return !hasKeyword || query.contains("全国") || query.contains("全网")
+                || query.contains("全部") || query.contains("哪些") || query.contains("当前") || query.contains("现在");
     }
 }

@@ -1,11 +1,18 @@
 # Weather Data Hub 项目事实
+
+## 官方灾害预警、事件与处置
+来源：frontend/src/views/OfficialAlertsView.vue、frontend/src/api/officialAlerts.js、backend/src/main/java/com/weatherhub/officialalert/、backend/src/main/java/com/weatherhub/operations/、backend/src/main/java/com/weatherhub/ai/tool/GetOfficialAlertsTool.java。
+系统提供“官方灾害预警”页面（/official-alerts，权限 official-alert:read），通过后端 GET /api/official-alerts 查询和风天气官方预警源。页面展示预警地区、标题、类型、等级、发布单位、发布时间和详情；地图支持按行政区下钻，并通过 /admin-boundary/ 代理加载行政区边界。
+Agent 的只读工具 get_official_alerts 可查询当前有效官方灾害预警；JEV 将“当前预警、哪些地区有预警、灾害警报”等请求分类为 official_alert，随后由固定工作流调用该工具。此工具受 official-alert:read 权限限制，不能发布、修改或删除预警。
+外部预警、摄像头告警和热带气旋可同步至事件中心；事件可创建处置工单。负责人可领取、转派、填写文字进展和现场定位、标记处置完成；管理员可验收或退回。进展记录以时间轴展示文字和定位点。
+系统展示和查询官方预警、开展内部事件处置，但不具备向气象主管部门发布、撤销或修改官方预警的能力；Agent 同样不执行发布和处置写操作。
 这份说明与代码一起发布，描述当前代码实现，不代表某台线上机器已部署或服务健康。回答项目问题时优先参考本说明并标注相关源码路径；实时数据以本轮工具结果为准。没有工具或证据覆盖的问题应说明缺口，不能猜测。
 
 ## 项目功能与页面
 来源：frontend/src/router/index.js、frontend/src/views/、backend/src/main/java/com/weatherhub/config/SecurityConfig.java。
 当前项目是气象与 GIS 数据管理系统，包含登录、工作台统计、用户管理、角色管理、菜单管理、GIS 标注、知识库、Agent 工作台。
 页面和访问权限：/dashboard 工作台 dashboard:view；/users 用户管理 user:read；/roles 角色管理 role:read；/menus 菜单管理 menu:read；/gis GIS 标注 gis:read；/kb 知识库 kb:read；/ai Agent 工作台 ai:chat。新增、修改、删除对应 user:write、role:write、menu:write、gis:write、kb:write。
-没有代码依据时不能说系统已经有设备监控、预警发布、气象历史数据仓库、定时采集、任意 SQL、文件上传解析、自动运维或 Agent 自动修改业务数据。天气查询依赖外部 Open-Meteo，不是本地气象历史库。
+没有代码依据时不能说系统已经有设备监控、预警发布、气象历史数据仓库、定时采集、任意 SQL、文件上传解析、自动运维或 Agent 自动修改业务数据。天气查询依赖外部 Open-Meteo，不是本地气象历史库；get_current_weather 可返回城市实况、未来 7 天逐日预报、未来 48 小时预报和空气质量。用户询问“海口未来7天天气”时，应查询海口并按工具证据输出逐日预报，不能声称系统只支持实况。
 
 ## 技术栈与数据存储
 来源：frontend/package.json、backend/pom.xml、backend/src/main/resources/application.yml、backend/src/main/java/com/weatherhub/config/GisDataSourceConfig.java。

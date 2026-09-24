@@ -7,6 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class GetCurrentWeatherToolTest {
 
     @Test
+    void preservesProvinceForProvinceWeatherQuery() {
+        assertEquals("\u6d77\u5357\u7701", GetCurrentWeatherTool.extractCity("\u6d77\u5357\u7701\u5929\u6c14"));
+    }
+
+    @Test
+    void extractsCityFromSevenDayForecastQuery() {
+        assertEquals("\u6d77\u53e3", GetCurrentWeatherTool.extractCity("\u6d77\u53e3\u672a\u67657\u5929\u5929\u6c14"));
+    }
+
+    @Test
     void extractsWuxiFromTomorrowRain() {
         assertEquals("无锡", GetCurrentWeatherTool.extractCity("无锡明天会不会下雨？"));
     }

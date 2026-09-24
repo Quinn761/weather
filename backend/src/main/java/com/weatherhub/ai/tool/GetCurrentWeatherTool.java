@@ -1,6 +1,7 @@
 package com.weatherhub.ai.tool;
 
 import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -11,6 +12,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -21,18 +23,22 @@ public class GetCurrentWeatherTool implements AiTool {
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
     private final RestClient http;
+    private final AdministrativeDivisionService divisions;
 
-    public GetCurrentWeatherTool() {
+    @Autowired
+    public GetCurrentWeatherTool(AdministrativeDivisionService divisions) {
         HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(8))
                 .build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(client);
         factory.setReadTimeout(Duration.ofSeconds(12));
         this.http = RestClient.builder().requestFactory(factory).build();
+        this.divisions = divisions;
     }
 
     GetCurrentWeatherTool(RestClient http) {
         this.http = http;
+        this.divisions = null;
     }
 
     @Override
@@ -63,16 +69,19 @@ public class GetCurrentWeatherTool implements AiTool {
         if (!StringUtils.hasText(city)) {
             city = extractCity(query);
         }
+        List<AdministrativeDivisionService.Area> provinceCities = divisions == null ? List.of() : divisions.citiesForProvince(city);
+        if (!provinceCities.isEmpty()) return provinceWeather(city, provinceCities);
         try {
-            JsonNode place = geocode(city);
-            if (place == null) {
+            AdministrativeDivisionService.Area chineseArea = divisions == null ? null : divisions.findArea(city);
+            JsonNode place = chineseArea == null ? geocode(city) : null;
+            if (chineseArea == null && place == null) {
                 return "没有找到城市「" + city + "」。请改成更明确的地名，例如无锡、上海。";
             }
-            String name = text(place.get("name"));
-            String admin = text(place.get("admin1"));
-            String country = text(place.get("country"));
-            double lat = number(place.get("latitude"));
-            double lon = number(place.get("longitude"));
+            String name = chineseArea == null ? text(place.get("name")) : chineseArea.name();
+            String admin = chineseArea == null ? text(place.get("admin1")) : "";
+            String country = chineseArea == null ? text(place.get("country")) : "中国";
+            double lat = chineseArea == null ? number(place.get("latitude")) : chineseArea.latitude();
+            double lon = chineseArea == null ? number(place.get("longitude")) : chineseArea.longitude();
             JsonNode root = forecast(lat, lon);
             if (root == null) {
                 return "已定位到 " + placeLabel(name, admin, country) + "，但天气接口没有返回数据。";
@@ -98,7 +107,7 @@ public class GetCurrentWeatherTool implements AiTool {
         }
         String city = query
                 .replaceAll("[?？。！!，,、：:]", " ")
-                .replaceAll("现在|当前|今天|今日|明天|后天|大后天|今晚|周末|实时|天气|气温|温度|湿度|风速|怎么样|如何|多少度|几度|下雨|降雨|预报|查询|看看|告诉我|帮我|请问|会不会|会否|带伞|出门|冷不冷|热不热|空气质量|空气|雾霾|污染|指数", " ")
+                .replaceAll("未来\\s*(?:[0-9]+|一|两|三|四|五|六|七)\\s*天|未来一周|本周|下周|现在|当前|今天|今日|明天|后天|大后天|今晚|周末|实时|天气|气温|温度|湿度|风速|怎么样|如何|多少度|几度|下雨|降雨|预报|查询|看看|告诉我|帮我|请问|会不会|会否|带伞|出门|冷不冷|热不热|空气质量|空气|雾霾|污染|指数", " ")
                 .replaceAll("的|吗|呢|啊|呀", " ")
                 .trim()
                 .replaceAll("\\s+", "");
@@ -136,9 +145,48 @@ public class GetCurrentWeatherTool implements AiTool {
         return "天气代码 " + code;
     }
 
+    private String provinceWeather(String province, List<AdministrativeDivisionService.Area> cities) {
+        StringBuilder out = new StringBuilder();
+        List<String> unavailable = new java.util.ArrayList<>();
+        out.append("\u6839\u636e\u5b9e\u65f6\u67e5\u8be2\u7ed3\u679c\uff0c").append(province).append("\u5404\u5e02\u53bf\u5f53\u524d\u5929\u6c14\u5982\u4e0b\uff1a\n\n");
+        out.append("\u5df2\u83b7\u53d6\u5230\u7684\u5e02\u53bf\n\n");
+        out.append("| \u5e02\u53bf | \u5929\u6c14 | \u6c14\u6e29 | \u6e7f\u5ea6 | \u98ce\u901f |\n");
+        out.append("| --- | --- | --- | --- | --- |\n");
+        int available = 0;
+        for (AdministrativeDivisionService.Area city : cities) {
+            try {
+                JsonNode current = null;
+                for (int attempt = 0; attempt < 2 && current == null; attempt++) {
+                    JsonNode weather = forecast(city.latitude(), city.longitude());
+                    JsonNode candidate = weather == null ? null : weather.get("current");
+                    if (candidate != null && !candidate.isNull()) current = candidate;
+                }
+                if (current == null || current.isNull()) {
+                    unavailable.add(city.name());
+                    continue;
+                }
+                int code = (int) Math.round(number(current.get("weather_code")));
+                out.append("| ").append(city.name())
+                        .append(" | ").append(weatherText(code))
+                        .append(" | ").append(text(current.get("temperature_2m"))).append("\u2103")
+                        .append(" | ").append(text(current.get("relative_humidity_2m"))).append("%")
+                        .append(" | ").append(text(current.get("wind_speed_10m"))).append(" km/h |\n");
+                available++;
+            } catch (Exception ex) {
+                unavailable.add(city.name());
+            }
+        }
+        if (available == 0) return "\u672a\u83b7\u53d6\u5230" + province + "\u4e0b\u5c5e\u5e02\u53bf\u7684\u5929\u6c14\u6570\u636e\u3002";
+        if (!unavailable.isEmpty()) {
+            out.append("\n\u5b9a\u4f4d\u5931\u8d25\u3001\u6682\u65e0\u6570\u636e\u7684\u5e02\u53bf\uff1a").append(String.join("\u3001", unavailable)).append('\n');
+        }
+        out.append("\n\u4ee5\u4e0a\u4e3a\u5404\u5e02\u53bf\u5b9e\u65f6\u89c2\u6d4b\u6c47\u603b\uff0c\u5e76\u975e\u5168\u7701\u7edf\u4e00\u9884\u62a5\u3002");
+        return out.toString();
+    }
+
     private JsonNode geocode(String city) {
         String raw = http.get()
-                .uri("https://geocoding-api.open-meteo.com/v1/search?name={name}&count=1&language=zh", city)
+                .uri("https://geocoding-api.open-meteo.com/v1/search?name={name}&count=1&language=zh&countryCode=CN", city)
                 .retrieve()
                 .body(String.class);
         JsonNode root = JSON.readTree(raw == null ? "{}" : raw);
