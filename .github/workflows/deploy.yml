@@ -289,6 +289,8 @@ jobs:
               kubectl -n weather get pods -o wide || true
               echo "===== backend pods ====="
               kubectl -n weather describe pods -l app=backend | tail -120 || true
+              echo "===== frontend pods ====="
+              kubectl -n weather describe pods -l app=frontend | tail -120 || true
               echo "===== backend logs ====="
               kubectl -n weather logs -l app=backend --tail=120 --prefix=true || true
               kubectl -n weather logs -l app=backend --tail=120 --previous --prefix=true || true
@@ -313,7 +315,8 @@ jobs:
 
             echo "== rollout backend/frontend =="
             wait_rollout backend 240 || dump
-            wait_rollout frontend 120 || dump
+            # The first GHCR pull can take longer than the backend startup on a small node.
+            wait_rollout frontend 360 || dump
             curl --connect-timeout 5 --max-time 20 -fsS "http://127.0.0.1:30080/api/health" || dump
             echo
             kubectl -n weather get pods
