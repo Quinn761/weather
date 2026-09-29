@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { ArrowDown, Close, Delete, DocumentCopy, Plus, Position, Search } from '@element-plus/icons-vue'
 import AgentAnswer from '@/components/AgentAnswer.vue'
+import aiChatBg from '@/assets/operations/ai-chat-bg.png'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createAgentSession,
@@ -344,7 +345,7 @@ function formatWhen(value) {
         </div>
       </aside>
 
-      <section class="ai-chat">
+      <section class="ai-chat" :style="{ '--chat-bg': `url(${aiChatBg})` }">
         <header class="chat-head">
           <button class="history-toggle text-action" @click="showHistory = !showHistory">{{ showHistory ? '收起记录' : '会话记录' }}</button>
           <div>
@@ -437,7 +438,16 @@ function formatWhen(value) {
 .session-del { opacity: 0; padding: 4px; width: 26px; }
 .session-item:hover .session-del, .session-item:focus-within .session-del { opacity: 1; }
 .session-empty { color: #8193a0; font-size: 12px; padding: 18px 8px; line-height: 1.8; }
-.ai-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; position: relative; }
+.ai-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  background:
+    linear-gradient(180deg, rgb(6 14 26 / 22%) 0%, rgb(6 14 26 / 8%) 46%, rgb(6 14 26 / 28%) 100%),
+    var(--chat-bg) center / cover no-repeat;
+}
 .chat-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 26px; border-bottom: 1px solid #edf1f4; gap: 12px; flex-shrink: 0; }
 .chat-head > div { min-width: 0; flex: 1; }
 .chat-head strong { font-size: 14px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -543,12 +553,12 @@ button:focus-visible, summary:focus-visible { outline: 2px solid #188b95; outlin
 .session-item:hover { background: #172a40; }
 .session-item.active { background: linear-gradient(100deg,#143348,#142238); border-color: #40c9ee55; box-shadow: inset 2px 0 #51dcff,0 0 20px #43ccff0b; }
 .session-main strong { color: #c8daee; }.active .session-main strong { color: #74e5ff; }
-.chat-head { border-color: #26394f; }.chat-head p { color: #8ca2ba; }
+.chat-head { border-color: #26394f; background: rgb(8 18 32 / 22%); }.chat-head p { color: #8ca2ba; }
 .mode-chip { background: #15243a; border-color: #324763; color: #a7bdd2; }
 .mode-chip.llm { background: #103145; border-color: #28617b; color: #80eaff; }.mode-chip.local { background: #302a25; border-color: #685334; color: #f1c97c; }
 .jev-chip { background: #15243a; border-color: #324763; color: #a7bdd2; }.jev-chip.active { background: #103145; border-color: #28617b; color: #80eaff; }
 .mode-notice { background: #29271f; border-color: #594d35; color: #f0ce91; }
-.ai-board { background: radial-gradient(ellipse at 52% 8%,#1a3450a1,transparent 58%),#0c1727; }
+.ai-board { background: transparent; }
 .welcome-mark { color: #80eaff; background: linear-gradient(145deg,#153b50,#24274b); border-color: #50d9ff45; box-shadow: 0 0 28px #38d2ff19; }
 .welcome-kicker { color: #88a8c2; }.ai-empty > p { color: #9aadc3; }
 .prompt-grid button { background: linear-gradient(145deg,#122238,#101b2c); border-color: #2a405a; color: #e0efff; box-shadow: inset 0 1px #dff8ff08; }

@@ -38,6 +38,11 @@ const isCameraDetailPage = computed(() => route.name === 'camera-detail')
 const isOfficialAlertsPage = computed(() => route.path === '/official-alerts')
 const alerts = ref([])
 const unreadAlertCount = computed(() => alerts.value.filter((item) => !item.readAt).length)
+const alertSummary = computed(() => {
+  if (!alerts.value.length) return '暂无活动预警'
+  if (!unreadAlertCount.value) return `${alerts.value.length} 条已读`
+  return `${unreadAlertCount.value} 条未读`
+})
 let alertTimer
 
 async function loadAlerts() {
@@ -144,7 +149,7 @@ async function logout() {
               <header class="alert-popover-head">
                 <div>
                   <strong>预警通知</strong>
-                  <span>{{ alerts.length ? `${alerts.length} 条待关注` : '暂无活动预警' }}</span>
+                  <span>{{ alertSummary }}</span>
                 </div>
                 <em v-if="unreadAlertCount">{{ unreadAlertCount }} 未读</em>
               </header>
@@ -166,6 +171,7 @@ async function logout() {
                 >
                   <div class="alert-item-top">
                     <span class="alert-level">{{ alertLabel(alert) }}</span>
+                    <span class="alert-state">{{ alert.readAt ? '已读' : '未读' }}</span>
                     <time>{{ formatAlertTime(alert.createdAt) }}</time>
                   </div>
                   <div class="alert-title">{{ alert.title }}</div>
@@ -277,7 +283,7 @@ async function logout() {
   font: inherit;
   line-height: 1.5;
   box-shadow: inset 3px 0 0 color-mix(in srgb, var(--tone) 55%, transparent);
-  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+  transition: border-color .16s ease, background .16s ease;
 }
 
 .alert-item.tone-warn { --tone: #e0b04a; }
@@ -285,17 +291,45 @@ async function logout() {
 .alert-item.tone-info { --tone: #4eb8d0; }
 
 .alert-item.unread {
-  border-color: color-mix(in srgb, var(--tone) 48%, #35566f);
+  border-color: color-mix(in srgb, var(--tone) 62%, #d7fff0);
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--tone) 22%, #163246), #102433f5);
   box-shadow:
     inset 3px 0 0 var(--tone),
-    0 8px 18px #00101d33;
+    0 0 0 1px color-mix(in srgb, var(--tone) 28%, transparent);
+}
+
+.alert-item:not(.unread) {
+  border-color: #31485c99;
+  background: linear-gradient(155deg, #121e2bcc, #0c1622ee);
+  box-shadow: inset 2px 0 0 #567488;
+}
+
+.alert-item:not(.unread) .alert-title {
+  color: #d5e4ef;
+  font-weight: 600;
+}
+
+.alert-item:not(.unread) .alert-content,
+.alert-item:not(.unread) time {
+  color: #93aec0;
+}
+
+.alert-item:not(.unread) .alert-level {
+  border-color: #3d5a70;
+  background: #152433;
+  color: #b7c9d6;
 }
 
 .alert-item:hover {
   border-color: color-mix(in srgb, var(--tone) 58%, #3a5a70);
   background:
     linear-gradient(155deg, color-mix(in srgb, var(--tone) 16%, #163246), #102032f2);
-  transform: translateY(-1px);
+}
+
+.alert-item:not(.unread):hover {
+  border-color: #4d6d86;
+  background: linear-gradient(155deg, #182a3c, #111d2af2);
 }
 
 .alert-item:focus-visible {
@@ -311,7 +345,8 @@ async function logout() {
   min-height: 22px;
 }
 
-.alert-level {
+.alert-level,
+.alert-state {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
@@ -324,6 +359,33 @@ async function logout() {
   font-size: 11px;
   font-weight: 650;
   letter-spacing: .02em;
+  line-height: 1;
+}
+
+.alert-state {
+  margin-right: auto;
+}
+
+.alert-item.unread .alert-state::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 6px var(--tone);
+}
+
+.alert-item:not(.unread) .alert-state {
+  border-color: #2f6d58;
+  background: #10241c;
+  color: #8ed4b0;
+}
+
+.alert-item:not(.unread) .alert-state::before {
+  content: '✓';
+  margin-right: 4px;
+  font-size: 10px;
   line-height: 1;
 }
 

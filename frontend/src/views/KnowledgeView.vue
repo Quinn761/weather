@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import knowledgeBaseBg from '@/assets/operations/knowledge-base-bg.png'
 import {
   createKnowledge,
   deleteKnowledge,
@@ -122,7 +123,7 @@ function clip(text) {
 
 <template>
   <div class="page kb-page">
-    <section class="hero-panel">
+    <section class="hero-panel" :style="{ '--hero-bg': `url(${knowledgeBaseBg})` }">
       <div>
         <p class="eyebrow">Knowledge Base</p>
         <h2>知识库</h2>
@@ -238,6 +239,15 @@ function clip(text) {
 </template>
 
 <style scoped>
+.hero-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(100deg, rgb(6 16 28 / 94%) 0%, rgb(8 20 34 / 82%) 40%, rgb(8 18 30 / 42%) 100%),
+    var(--hero-bg) right center / cover no-repeat;
+}
+
 .muted {
   margin: 0;
   color: #64748b;

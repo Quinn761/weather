@@ -7,6 +7,7 @@ import { CircleCheck, Clock, Collection, Delete, Loading, Notebook, Plus, Refres
 import { acceptWorkOrder, addWorkOrderProgress, assignWorkOrder, createWorkOrder, deleteWorkOrder, getWorkOrderDetail, listEvents, listWorkOrders, updateWorkOrderStatus } from '@/api/operations'
 import { listUsers } from '@/api/user'
 import { useAuthStore } from '@/stores/auth'
+import workOrdersBg from '@/assets/operations/work-orders-bg.png'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -125,7 +126,7 @@ onMounted(load)
 
 <template>
   <div class="page work-orders-page">
-    <section class="work-header">
+    <section class="work-header" :style="{ '--hero-bg': `url(${workOrdersBg})` }">
       <div class="work-header-copy">
         <p class="eyebrow">Response workflow</p>
         <h2>事件处置工单</h2>
@@ -419,14 +420,19 @@ onMounted(load)
 }
 
 .work-header {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   align-items: end;
   justify-content: space-between;
   gap: 24px;
-  padding: 20px 24px;
+  padding: 22px 24px;
   border: 1px solid #4f9fc72b;
   border-radius: 16px;
-  background: linear-gradient(120deg, #0e2c40, #102036 54%, #0c1828);
+  background:
+    linear-gradient(100deg, rgb(6 16 28 / 94%) 0%, rgb(8 20 34 / 84%) 42%, rgb(8 18 30 / 46%) 100%),
+    var(--hero-bg) right center / cover no-repeat;
   box-shadow: inset 0 1px #7be9ff16;
 }
 

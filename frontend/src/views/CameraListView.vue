@@ -6,6 +6,7 @@ import { useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useAuthStore } from '@/stores/auth'
+import cameraListBg from '@/assets/operations/camera-list-bg.png'
 import {
   addCameraDevice,
   cameraDevices,
@@ -138,7 +139,7 @@ onMounted(async () => {
 
 <template>
   <div class="page camera-page">
-    <section class="hero-panel">
+    <section class="hero-panel" :style="{ '--hero-bg': `url(${cameraListBg})` }">
       <div>
         <p class="eyebrow">Video Device Registry</p>
         <h2>摄像头列表</h2>
@@ -247,7 +248,18 @@ onMounted(async () => {
 
 <style scoped>
 .camera-page { display: grid; gap: 16px; }
-.hero-panel { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.hero-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background:
+    linear-gradient(100deg, rgb(6 16 28 / 94%) 0%, rgb(8 20 34 / 84%) 42%, rgb(8 18 30 / 46%) 100%),
+    var(--hero-bg) right center / cover no-repeat;
+}
 .camera-name { display: flex; align-items: center; gap: 8px; }
 .camera-name .el-icon { color: #59e1d1; font-size: 18px; }
 .camera-form :deep(.el-form-item) { margin-bottom: 10px; }

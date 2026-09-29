@@ -178,7 +178,7 @@ onMounted(async () => {
       <el-form label-position="top">
         <el-form-item label="来源">
           <el-select v-model="form.sourceType" disabled>
-            <el-option v-for="(label, key) in sourceText" v-if="key === 'MANUAL'" :key="key" :label="label" :value="key" />
+            <el-option label="人工上报" value="MANUAL" />
           </el-select>
         </el-form-item>
         <el-form-item label="事件标题" required>

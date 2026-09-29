@@ -135,11 +135,42 @@ const displayWarnings = computed(() => {
   }
   return selectedWarnings.value.map((warning) => ({ ...warning, regionName: selectedRegion.value }))
 })
+const warningListEl = ref(null)
+const warningTrackEl = ref(null)
+const warningOverflows = ref(false)
+const warningResizeObserver = new ResizeObserver(() => measureWarningOverflow())
+
+function measureWarningOverflow() {
+  const list = warningListEl.value
+  const track = warningTrackEl.value
+  const count = displayWarnings.value.length
+  if (!list || !track || !count) {
+    warningOverflows.value = false
+    return
+  }
+  const items = track.children
+  const sample = Math.min(count, items.length)
+  if (!sample) return
+  const gap = Number.parseFloat(getComputedStyle(track).rowGap) || 0
+  let contentHeight = gap * Math.max(0, sample - 1)
+  for (let index = 0; index < sample; index += 1) contentHeight += items[index].offsetHeight
+  const overflows = contentHeight > list.clientHeight + 1
+  if (overflows !== warningOverflows.value) warningOverflows.value = overflows
+}
+
 const marqueeWarnings = computed(() => {
   const warnings = displayWarnings.value
-  return warnings.length > 2 ? [...warnings, ...warnings] : warnings
+  return warningOverflows.value ? [...warnings, ...warnings] : warnings
 })
 const marqueeDuration = computed(() => `${Math.max(16, displayWarnings.value.length * 5)}s`)
+
+watch([warningListEl, warningTrackEl], ([list, track]) => {
+  warningResizeObserver.disconnect()
+  if (list) warningResizeObserver.observe(list)
+  if (track) warningResizeObserver.observe(track)
+  measureWarningOverflow()
+}, { flush: 'post' })
+watch(displayWarnings, () => measureWarningOverflow(), { flush: 'post' })
 const warningCount = computed(() => (alertOverview.value?.regions || []).reduce((total, region) => total + (region.warnings?.length || 0), 0))
 const tropicalStorms = computed(() => tropicalOverview.value?.storms || [])
 const selectedTropicalStorm = computed(() => tropicalStorms.value.find((storm) => storm.id === selectedStormId.value) || tropicalStorms.value[0] || null)
@@ -739,6 +770,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  warningResizeObserver.disconnect()
   window.clearInterval(radarRefreshTimer)
   stopRadarPlayback()
   map?.remove()
@@ -763,11 +795,12 @@ onBeforeUnmount(() => {
         <p>预警状态 · {{ selectedRegion }}</p>
         <div
           v-if="displayWarnings.length"
+          ref="warningListEl"
           class="warning-list"
-          :class="{ scrolling: displayWarnings.length > 2 }"
+          :class="{ scrolling: warningOverflows }"
           :style="{ '--marquee-duration': marqueeDuration }"
         >
-          <div class="warning-track">
+          <div ref="warningTrackEl" class="warning-track">
             <article
               v-for="(warning, index) in marqueeWarnings"
               :key="`${warning.id}-${index}`"
