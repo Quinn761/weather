@@ -88,7 +88,9 @@ const cameraPlayerError = ref('')
 const cameras = cameraDevices
 
 const UAV_TILES = {
-  url: 'http://60.205.211.104:8888/uav/{z}/{x}/{y}.png',
+  // Keep tile requests same-origin.  Direct HTTP requests are blocked as mixed
+  // content when the GIS application is opened over HTTPS.
+  url: '/uav-tiles/{z}/{x}/{y}.png',
   minZoom: 14,
   maxZoom: 22,
   west: 114.009338,
