@@ -8,10 +8,14 @@ spec:
   selector:
     app: frontend
   ports:
+    - name: https
+      port: 443
+      targetPort: 443
+      nodePort: 30000
     - name: http
       port: 80
       targetPort: 80
-      nodePort: 30000
+      nodePort: 30001
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,3 +46,18 @@ spec:
           ports:
             - containerPort: 80
               name: http
+            - containerPort: 443
+              name: https
+          volumeMounts:
+            - name: frontend-tls
+              mountPath: /etc/nginx/certs
+              readOnly: true
+      volumes:
+        - name: frontend-tls
+          secret:
+            secretName: weatherhub-ip-tls
+            items:
+              - key: weatherhub-ip.crt
+                path: weatherhub-ip.crt
+              - key: weatherhub-ip.key
+                path: weatherhub-ip.key

@@ -195,6 +195,32 @@ jobs:
             kubectl apply -f "$K8SDIR/02-redis.yaml"
             kubectl -n weather rollout status deploy/redis --timeout=120s
 
+            # The frontend is exposed directly by IP, so create the self-signed
+            # certificate on the deployment host and mount it through a Secret.
+            # Keeping the key off GitHub and out of the repository avoids
+            # publishing private certificate material in the image or source.
+            TLS_DIR=/root/.weather-https
+            TLS_CERT="$TLS_DIR/weatherhub-ip.crt"
+            TLS_KEY="$TLS_DIR/weatherhub-ip.key"
+            mkdir -p "$TLS_DIR"
+            chmod 700 "$TLS_DIR"
+            if [ ! -s "$TLS_CERT" ] || [ ! -s "$TLS_KEY" ]; then
+              command -v openssl >/dev/null 2>&1 || {
+                echo "openssl is required to create the HTTPS certificate"
+                exit 1
+              }
+              openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 825 \
+                -keyout "$TLS_KEY" \
+                -out "$TLS_CERT" \
+                -subj "/CN=60.205.211.104" \
+                -addext "subjectAltName=IP:60.205.211.104"
+              chmod 600 "$TLS_KEY"
+            fi
+            kubectl -n weather create secret generic weatherhub-ip-tls \
+              --from-file=weatherhub-ip.crt="$TLS_CERT" \
+              --from-file=weatherhub-ip.key="$TLS_KEY" \
+              --dry-run=client -o yaml | kubectl apply -f -
+
             AI_API_KEY="${AI_API_KEY:-}"
             JEV_API_KEY="${JEV_API_KEY:-}"
             ROBOFLOW_API_KEY="${ROBOFLOW_API_KEY:-}"
